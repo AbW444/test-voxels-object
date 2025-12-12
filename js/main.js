@@ -12,14 +12,8 @@ let clock;
 let currentImageA = null;
 let currentImageB = null;
 
-// Éléments DOM
-const dropZone = document.getElementById('drop-zone');
-const slotA = document.getElementById('slot-a');
-const slotB = document.getElementById('slot-b');
-const previewA = document.getElementById('preview-a');
-const previewB = document.getElementById('preview-b');
-const controlsPanel = document.getElementById('controls-panel');
-const instructions = document.getElementById('instructions');
+// Éléments DOM (seront initialisés après chargement du DOM)
+let dropZone, slotA, slotB, previewA, previewB, controlsPanel, instructions;
 
 /**
  * Initialisation de la scène Three.js
@@ -548,11 +542,30 @@ window.addEventListener('resize', onWindowResize);
  * Initialisation au chargement
  */
 window.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing...');
+
+    // Initialisation des éléments DOM
+    dropZone = document.getElementById('drop-zone');
+    slotA = document.getElementById('slot-a');
+    slotB = document.getElementById('slot-b');
+    previewA = document.getElementById('preview-a');
+    previewB = document.getElementById('preview-b');
+    controlsPanel = document.getElementById('controls-panel');
+    instructions = document.getElementById('instructions');
+
+    console.log('DOM elements:', {
+        dropZone: !!dropZone,
+        slotA: !!slotA,
+        slotB: !!slotB,
+        previewA: !!previewA,
+        previewB: !!previewB
+    });
+
     initThreeJS();
     initDragAndDrop();
     initControls();
     animate();
 
     console.log('Système de visualisation volumétrique initialisé');
-    console.log('Glissez deux images pour commencer');
+    console.log('Cliquez sur les boutons pour sélectionner les images');
 });

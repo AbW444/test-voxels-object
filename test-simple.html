@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simple - Volumetric Particles</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: white;
+            color: black;
+            overflow: hidden;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        #controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border: 2px solid black;
+        }
+        button {
+            display: block;
+            margin: 10px 0;
+            padding: 10px 20px;
+            background: black;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #333;
+        }
+        .preview {
+            width: 100px;
+            height: 100px;
+            border: 1px solid black;
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .preview img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        #info {
+            font-size: 12px;
+            margin-top: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="controls">
+        <h2>Volumetric Particles Test</h2>
+
+        <p>Image A:</p>
+        <div class="preview" id="preview-a">Vide</div>
+        <button onclick="selectImageA()">Select Image A</button>
+        <input type="file" id="file-a" accept="image/*" onchange="loadImageA(event)">
+
+        <p>Image B:</p>
+        <div class="preview" id="preview-b">Vide</div>
+        <button onclick="selectImageB()">Select Image B</button>
+        <input type="file" id="file-b" accept="image/*" onchange="loadImageB(event)">
+
+        <button onclick="generateVolume()" id="gen-btn" disabled>Generate Volume</button>
+
+        <div id="info">No images loaded</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+    <script>
+        console.log('Script started');
+
+        let scene, camera, renderer, controls;
+        let particleSystem = null;
+        let imageDataA = null;
+        let imageDataB = null;
+
+        // Init Three.js
+        function initThree() {
+            console.log('Initializing Three.js');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+            camera.position.z = 600;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            console.log('Three.js initialized');
+        }
+
+        function selectImageA() {
+            console.log('Select Image A clicked');
+            document.getElementById('file-a').click();
+        }
+
+        function selectImageB() {
+            console.log('Select Image B clicked');
+            document.getElementById('file-b').click();
+        }
+
+        function loadImageA(event) {
+            console.log('Loading Image A');
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    console.log('Image A loaded:', img.width, 'x', img.height);
+
+                    // Preview
+                    document.getElementById('preview-a').innerHTML = '<img src="' + e.target.result + '">';
+
+                    // Extract data
+                    const canvas = document.createElement('canvas');
+                    const size = Math.min(img.width, img.height);
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, size, size);
+                    imageDataA = ctx.getImageData(0, 0, size, size);
+
+                    checkReady();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function loadImageB(event) {
+            console.log('Loading Image B');
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    console.log('Image B loaded:', img.width, 'x', img.height);
+
+                    // Preview
+                    document.getElementById('preview-b').innerHTML = '<img src="' + e.target.result + '">';
+
+                    // Extract data
+                    const canvas = document.createElement('canvas');
+                    const size = Math.min(img.width, img.height);
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, size, size);
+                    imageDataB = ctx.getImageData(0, 0, size, size);
+
+                    checkReady();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function checkReady() {
+            if (imageDataA && imageDataB) {
+                document.getElementById('gen-btn').disabled = false;
+                document.getElementById('info').textContent = 'Ready to generate!';
+                console.log('Both images loaded, ready to generate');
+            }
+        }
+
+        function generateVolume() {
+            console.log('Generating volume...');
+
+            if (!imageDataA || !imageDataB) {
+                alert('Please load both images first');
+                return;
+            }
+
+            const resolution = Math.min(imageDataA.width, imageDataB.width);
+            const step = 4;
+            const particleCount = Math.floor((resolution / step) * (resolution / step));
+
+            console.log('Creating', particleCount, 'particles');
+
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colorsA = new Float32Array(particleCount * 3);
+            const colorsB = new Float32Array(particleCount * 3);
+
+            let index = 0;
+            const halfRes = resolution / 2;
+
+            for (let y = 0; y < resolution; y += step) {
+                for (let x = 0; x < resolution; x += step) {
+                    const px = x - halfRes;
+                    const py = -(y - halfRes);
+                    const pz = (Math.random() - 0.5) * 100;
+
+                    positions[index * 3] = px;
+                    positions[index * 3 + 1] = py;
+                    positions[index * 3 + 2] = pz;
+
+                    const pixelIndex = (y * resolution + x) * 4;
+
+                    colorsA[index * 3] = imageDataA.data[pixelIndex] / 255;
+                    colorsA[index * 3 + 1] = imageDataA.data[pixelIndex + 1] / 255;
+                    colorsA[index * 3 + 2] = imageDataA.data[pixelIndex + 2] / 255;
+
+                    colorsB[index * 3] = imageDataB.data[pixelIndex] / 255;
+                    colorsB[index * 3 + 1] = imageDataB.data[pixelIndex + 1] / 255;
+                    colorsB[index * 3 + 2] = imageDataB.data[pixelIndex + 2] / 255;
+
+                    index++;
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('colorA', new THREE.BufferAttribute(colorsA, 3));
+            geometry.setAttribute('colorB', new THREE.BufferAttribute(colorsB, 3));
+
+            const vertexShader = `
+                attribute vec3 colorA;
+                attribute vec3 colorB;
+                varying vec3 vColorA;
+                varying vec3 vColorB;
+                varying float vPositionZ;
+
+                void main() {
+                    vColorA = colorA;
+                    vColorB = colorB;
+                    vPositionZ = position.z;
+
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_Position = projectionMatrix * mvPosition;
+                    gl_PointSize = 2.0 * (300.0 / -mvPosition.z);
+                }
+            `;
+
+            const fragmentShader = `
+                varying vec3 vColorA;
+                varying vec3 vColorB;
+                varying float vPositionZ;
+
+                void main() {
+                    float t = clamp(vPositionZ / 50.0 * 0.5 + 0.5, 0.0, 1.0);
+                    vec3 finalColor = mix(vColorA, vColorB, t);
+
+                    vec2 center = gl_PointCoord - vec2(0.5);
+                    float dist = length(center);
+                    float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
+
+                    gl_FragColor = vec4(finalColor, alpha);
+                    if (alpha < 0.01) discard;
+                }
+            `;
+
+            const material = new THREE.ShaderMaterial({
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                transparent: true,
+                depthWrite: false
+            });
+
+            if (particleSystem) {
+                scene.remove(particleSystem);
+            }
+
+            particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+
+            document.getElementById('info').textContent = 'Volume generated! Drag to rotate.';
+            console.log('Volume generated successfully');
+        }
+
+        // Simple mouse control
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        renderer.domElement.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        renderer.domElement.addEventListener('mousemove', function(e) {
+            if (!isDragging || !particleSystem) return;
+
+            const deltaX = e.clientX - previousMousePosition.x;
+            const deltaY = e.clientY - previousMousePosition.y;
+
+            particleSystem.rotation.y += deltaX * 0.01;
+            particleSystem.rotation.x += deltaY * 0.01;
+
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        // Window resize
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start
+        window.addEventListener('load', function() {
+            console.log('Window loaded');
+            initThree();
+            animate();
+        });
+    </script>
+</body>
+</html>
