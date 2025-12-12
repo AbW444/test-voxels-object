@@ -96,7 +96,14 @@ header .subtitle {
 .drop-subtitle {
     font-size: 14px;
     opacity: 0.6;
+    margin-bottom: 8px;
+}
+
+.drop-hint {
+    font-size: 12px;
+    opacity: 0.4;
     margin-bottom: 40px;
+    font-style: italic;
 }
 
 .drop-slots {
@@ -106,8 +113,7 @@ header .subtitle {
 }
 
 .drop-slot {
-    width: 200px;
-    height: 240px;
+    width: 220px;
     border: 2px solid #000000;
     display: flex;
     flex-direction: column;
@@ -134,12 +140,13 @@ header .subtitle {
 }
 
 .slot-preview {
-    flex: 1;
+    height: 180px;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     position: relative;
+    background-color: #fafafa;
 }
 
 .slot-preview img {
@@ -148,14 +155,62 @@ header .subtitle {
     object-fit: contain;
 }
 
-.slot-preview::before {
-    content: 'Vide';
-    position: absolute;
+.preview-placeholder {
     font-size: 12px;
     opacity: 0.3;
 }
 
-.slot-preview.has-image::before {
+.slot-preview.has-image .preview-placeholder {
+    display: none;
+}
+
+.select-button {
+    width: 100%;
+    padding: 12px;
+    background-color: #000000;
+    color: #ffffff;
+    border: none;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.select-button:hover {
+    background-color: #333333;
+}
+
+.select-button:active {
+    background-color: #000000;
+    transform: scale(0.98);
+}
+
+.generate-button {
+    margin-top: 30px;
+    padding: 16px 40px;
+    background-color: #000000;
+    color: #ffffff;
+    border: none;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.generate-button:hover {
+    background-color: #333333;
+    transform: translateY(-2px);
+}
+
+.generate-button:active {
+    transform: translateY(0);
+}
+
+.generate-button.hidden {
     display: none;
 }
 

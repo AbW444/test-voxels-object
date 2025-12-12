@@ -19,20 +19,32 @@
     <!-- Zone de drag & drop -->
     <div id="drop-zone" class="drop-zone">
         <div class="drop-content">
-            <p class="drop-title">Glissez deux images ici</p>
+            <p class="drop-title">Sélectionnez deux images</p>
             <p class="drop-subtitle">Format recommandé : 1080×1080px (carré)</p>
+            <p class="drop-hint">Glissez-déposez ou cliquez sur les boutons</p>
             <div class="drop-slots">
                 <div class="drop-slot" id="slot-a">
                     <span class="slot-label">Image A</span>
-                    <div class="slot-preview" id="preview-a"></div>
+                    <div class="slot-preview" id="preview-a">
+                        <span class="preview-placeholder">Vide</span>
+                    </div>
+                    <button class="select-button" id="select-button-a">Sélectionner Image A</button>
                 </div>
                 <div class="drop-slot" id="slot-b">
                     <span class="slot-label">Image B</span>
-                    <div class="slot-preview" id="preview-b"></div>
+                    <div class="slot-preview" id="preview-b">
+                        <span class="preview-placeholder">Vide</span>
+                    </div>
+                    <button class="select-button" id="select-button-b">Sélectionner Image B</button>
                 </div>
             </div>
+            <button id="generate-button" class="generate-button hidden">Générer le volume particulaire</button>
         </div>
     </div>
+
+    <!-- Inputs file cachés -->
+    <input type="file" id="file-input-a" accept="image/*" style="display: none;">
+    <input type="file" id="file-input-b" accept="image/*" style="display: none;">
 
     <!-- Panneau de contrôle -->
     <div id="controls-panel" class="controls-panel hidden">

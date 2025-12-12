@@ -276,10 +276,47 @@ THREE.OrbitControls = function(camera, domElement) {
 };
 
 /**
- * Système de drag & drop
+ * Système de sélection de fichiers et drag & drop
  */
 function initDragAndDrop() {
-    // Prévention du comportement par défaut
+    const fileInputA = document.getElementById('file-input-a');
+    const fileInputB = document.getElementById('file-input-b');
+    const selectButtonA = document.getElementById('select-button-a');
+    const selectButtonB = document.getElementById('select-button-b');
+    const generateButton = document.getElementById('generate-button');
+
+    // Boutons de sélection
+    selectButtonA.addEventListener('click', () => {
+        fileInputA.click();
+    });
+
+    selectButtonB.addEventListener('click', () => {
+        fileInputB.click();
+    });
+
+    // Gestion des inputs file
+    fileInputA.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            loadImageToSlot(file, 'A');
+        }
+    });
+
+    fileInputB.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            loadImageToSlot(file, 'B');
+        }
+    });
+
+    // Bouton de génération
+    generateButton.addEventListener('click', () => {
+        if (currentImageA && currentImageB) {
+            generateVolumetricSystem();
+        }
+    });
+
+    // Prévention du comportement par défaut pour drag & drop
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, preventDefaults, false);
         document.body.addEventListener(eventName, preventDefaults, false);
@@ -305,10 +342,6 @@ function initDragAndDrop() {
 
     // Gestion du drop
     dropZone.addEventListener('drop', handleDrop);
-
-    // Click sur les slots individuels
-    slotA.addEventListener('click', () => triggerFileInput('A'));
-    slotB.addEventListener('click', () => triggerFileInput('B'));
 }
 
 function handleDrop(e) {
@@ -333,21 +366,9 @@ function handleDrop(e) {
     }
 }
 
-function triggerFileInput(slot) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            loadImageToSlot(file, slot);
-        }
-    };
-    input.click();
-}
-
 function loadImageToSlot(file, slot) {
     const reader = new FileReader();
+    const generateButton = document.getElementById('generate-button');
 
     reader.onload = (e) => {
         const img = new Image();
@@ -364,9 +385,9 @@ function loadImageToSlot(file, slot) {
                 slotB.classList.add('filled');
             }
 
-            // Si les deux images sont chargées, générer le système
+            // Si les deux images sont chargées, afficher le bouton de génération
             if (currentImageA && currentImageB) {
-                generateVolumetricSystem();
+                generateButton.classList.remove('hidden');
             }
         };
         img.src = e.target.result;
@@ -461,16 +482,27 @@ function initControls() {
 }
 
 function resetSystem() {
+    const generateButton = document.getElementById('generate-button');
+    const fileInputA = document.getElementById('file-input-a');
+    const fileInputB = document.getElementById('file-input-b');
+
     // Réinitialisation
     currentImageA = null;
     currentImageB = null;
 
-    previewA.innerHTML = '';
-    previewB.innerHTML = '';
+    previewA.innerHTML = '<span class="preview-placeholder">Vide</span>';
+    previewB.innerHTML = '<span class="preview-placeholder">Vide</span>';
     previewA.classList.remove('has-image');
     previewB.classList.remove('has-image');
     slotA.classList.remove('filled');
     slotB.classList.remove('filled');
+
+    // Reset des inputs file
+    fileInputA.value = '';
+    fileInputB.value = '';
+
+    // Masquer le bouton de génération
+    generateButton.classList.add('hidden');
 
     volumetricParticles.dispose();
 
