@@ -5,58 +5,82 @@
     <title>Volumetric Particle System</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #fff; color: #000; overflow: hidden; }
-
-        h1 { position: fixed; top: 20px; left: 20px; z-index: 100; font-size: 28px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               background: #000; color: #fff; overflow: hidden; }
 
         #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 
-        #ui { position: fixed; top: 100px; left: 20px; z-index: 100; background: rgba(255,255,255,0.95);
-              padding: 20px; border: 2px solid #000; max-width: 300px; }
+        #ui { position: fixed; bottom: 20px; right: 20px; z-index: 100;
+              background: rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+              padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+              min-width: 280px; }
 
-        button { display: block; width: 100%; margin: 10px 0; padding: 12px; background: #000; color: #fff;
-                 border: none; cursor: pointer; font-size: 14px; font-weight: bold; }
-        button:hover { background: #333; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
+        #title { position: fixed; top: 20px; left: 20px; z-index: 100;
+                 font-size: 14px; font-weight: 500; opacity: 0.6;
+                 text-transform: uppercase; letter-spacing: 2px; }
 
-        .preview { width: 120px; height: 120px; border: 2px solid #000; margin: 10px 0;
-                   display: flex; align-items: center; justify-content: center; background: #f5f5f5; }
-        .preview img { max-width: 100%; max-height: 100%; }
+        button { display: block; width: 100%; margin: 8px 0; padding: 14px;
+                 background: rgba(255,255,255,0.1); color: #fff;
+                 border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+                 cursor: pointer; font-size: 13px; font-weight: 600;
+                 transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+        button:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4); }
+        button:active { transform: scale(0.98); }
+
+        .preview { width: 100%; aspect-ratio: 1; border-radius: 8px; margin: 12px 0;
+                   display: flex; align-items: center; justify-content: center;
+                   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+                   overflow: hidden; }
+        .preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
         input[type="file"] { display: none; }
 
-        label { font-size: 12px; font-weight: bold; margin-top: 10px; display: block; }
+        label { font-size: 11px; font-weight: 600; margin-top: 16px; display: block;
+                text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
 
         .hidden { display: none !important; }
 
-        #controls { margin-top: 20px; padding-top: 20px; border-top: 2px solid #000; }
-        .slider { width: 100%; }
-        .value { font-family: monospace; float: right; }
+        #controls { margin-top: 16px; padding-top: 16px;
+                    border-top: 1px solid rgba(255,255,255,0.1); }
+
+        .slider { width: 100%; height: 4px; border-radius: 2px;
+                  background: rgba(255,255,255,0.1); outline: none;
+                  -webkit-appearance: none; margin: 8px 0; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+                                         width: 16px; height: 16px; border-radius: 50%;
+                                         background: #fff; cursor: pointer; }
+        .slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%;
+                                     background: #fff; cursor: pointer; border: none; }
+
+        .value { font-family: 'Courier New', monospace; float: right; font-weight: 700; }
+
+        .hint { font-size: 10px; opacity: 0.4; margin-top: 12px; text-align: center;
+                font-style: italic; }
     </style>
 </head>
 <body>
-    <h1>Volumetric Particles</h1>
-
+    <div id="title">Volumetric Particles</div>
     <div id="canvas"></div>
 
     <div id="ui">
-        <label>Select Image:</label>
         <div class="preview" id="preview">Empty</div>
-        <button onclick="document.getElementById('file-input').click()">LOAD IMAGE</button>
+        <button onclick="document.getElementById('file-input').click()">Load Image</button>
         <input type="file" id="file-input" accept="image/*">
 
         <div id="controls" class="hidden">
-            <label>Point Size: <span class="value" id="val-size">0.02</span></label>
+            <label>Point Size <span class="value" id="val-size">0.02</span></label>
             <input type="range" class="slider" id="size" min="0.01" max="0.1" step="0.001" value="0.02" oninput="updateSize(this.value)">
 
-            <label>Depth Spread: <span class="value" id="val-depth">150</span></label>
-            <input type="range" class="slider" id="depth" min="10" max="300" step="5" value="150" oninput="updateDepth(this.value)">
+            <label>Depth Spread <span class="value" id="val-depth">Auto</span></label>
+            <input type="range" class="slider" id="depth" min="0.5" max="2" step="0.1" value="1" oninput="updateDepth(this.value)">
 
-            <label>Breath Speed: <span class="value" id="val-breath">0.5</span></label>
+            <label>Breath Speed <span class="value" id="val-breath">0.5</span></label>
             <input type="range" class="slider" id="breath" min="0" max="2" step="0.1" value="0.5" oninput="updateBreath(this.value)">
 
-            <button onclick="reset()">RESET</button>
+            <button onclick="reset()">Reset</button>
         </div>
+
+        <p class="hint">Drag to rotate • Scroll to zoom</p>
     </div>
 
     <script src="three.min.js"></script>
@@ -64,7 +88,7 @@
         let scene, camera, renderer, particles;
         let geometry, material;
         let breathSpeed = 0.5;
-        let depthSpread = 150;
+        let depthMultiplier = 1.0;
         let time = 0;
 
         // Init Three.js
@@ -105,6 +129,15 @@
             document.onmouseup = function() {
                 isDrag = false;
             };
+
+            // Zoom with mouse wheel
+            renderer.domElement.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const zoomSpeed = 0.1;
+                const delta = e.deltaY > 0 ? 1 : -1;
+                camera.position.z += delta * zoomSpeed * camera.position.z;
+                camera.position.z = Math.max(50, Math.min(1000, camera.position.z));
+            });
 
             animate();
         }
@@ -151,6 +184,10 @@
             const scaleFactor = 0.5;
             const halfW = width / 2;
             const halfH = height / 2;
+
+            // Calculate depth to create a CUBE (not a flat rectangle)
+            const maxDim = Math.max(width, height);
+            const depthSpread = maxDim * scaleFactor * depthMultiplier;
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
@@ -205,8 +242,8 @@
         }
 
         function updateDepth(val) {
-            document.getElementById('val-depth').textContent = val;
-            depthSpread = parseFloat(val);
+            document.getElementById('val-depth').textContent = parseFloat(val).toFixed(1) + 'x';
+            depthMultiplier = parseFloat(val);
         }
 
         function updateBreath(val) {
