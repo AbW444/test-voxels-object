@@ -49,8 +49,8 @@
             <label>Point Size: <span class="value" id="val-size">0.02</span></label>
             <input type="range" class="slider" id="size" min="0.01" max="0.1" step="0.001" value="0.02" oninput="updateSize(this.value)">
 
-            <label>Depth Spread: <span class="value" id="val-depth">10</span></label>
-            <input type="range" class="slider" id="depth" min="1" max="50" step="1" value="10" oninput="updateDepth(this.value)">
+            <label>Depth Spread: <span class="value" id="val-depth">150</span></label>
+            <input type="range" class="slider" id="depth" min="10" max="300" step="5" value="150" oninput="updateDepth(this.value)">
 
             <label>Breath Speed: <span class="value" id="val-breath">0.5</span></label>
             <input type="range" class="slider" id="breath" min="0" max="2" step="0.1" value="0.5" oninput="updateBreath(this.value)">
@@ -64,7 +64,7 @@
         let scene, camera, renderer, particles;
         let geometry, material;
         let breathSpeed = 0.5;
-        let depthSpread = 10;
+        let depthSpread = 150;
         let time = 0;
 
         // Init Three.js
