@@ -72,15 +72,16 @@
         </div>
 
         <div id="controls" class="hidden">
-            <label>Point Size <span class="value" id="val-size">0.02</span></label>
-            <input type="range" class="slider" id="size" min="0.01" max="0.1" step="0.001" value="0.02" oninput="updateSize(this.value)">
+            <label>Point Size <span class="value" id="val-size">0.020</span></label>
+            <input type="range" class="slider" id="size" min="0.01" max="0.1" step="0.001" value="0.02" oninput="document.getElementById('val-size').textContent = parseFloat(this.value).toFixed(3)">
 
-            <label>Depth Spread <span class="value" id="val-depth">Auto</span></label>
-            <input type="range" class="slider" id="depth" min="0.5" max="2" step="0.1" value="1" oninput="updateDepth(this.value)">
+            <label>Depth Spread <span class="value" id="val-depth">1.0x</span></label>
+            <input type="range" class="slider" id="depth" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('val-depth').textContent = parseFloat(this.value).toFixed(1) + 'x'">
 
             <label>Breath Speed <span class="value" id="val-breath">0.5</span></label>
-            <input type="range" class="slider" id="breath" min="0" max="2" step="0.1" value="0.5" oninput="updateBreath(this.value)">
+            <input type="range" class="slider" id="breath" min="0" max="2" step="0.1" value="0.5" oninput="document.getElementById('val-breath').textContent = parseFloat(this.value).toFixed(1)">
 
+            <button onclick="applySettings()">Apply</button>
             <button onclick="reset()">Reset</button>
         </div>
 
@@ -93,7 +94,9 @@
         let geometry, material;
         let breathSpeed = 0.5;
         let depthMultiplier = 1.0;
+        let pointSize = 0.02;
         let time = 0;
+        let currentImage = null;
 
         // Init Three.js
         function init() {
@@ -155,7 +158,17 @@
             reader.onload = function(ev) {
                 const img = new Image();
                 img.onload = function() {
+                    currentImage = img;
                     document.getElementById('preview').innerHTML = '<img src="' + ev.target.result + '">';
+
+                    // Reset sliders to default (cube)
+                    document.getElementById('size').value = 0.02;
+                    document.getElementById('depth').value = 1.0;
+                    document.getElementById('breath').value = 0.5;
+                    document.getElementById('val-size').textContent = '0.020';
+                    document.getElementById('val-depth').textContent = '1.0x';
+                    document.getElementById('val-breath').textContent = '0.5';
+
                     generate(img);
                 };
                 img.src = ev.target.result;
@@ -169,8 +182,13 @@
                 return;
             }
 
-            // Force resize/crop to 1000x1000 square
-            const TARGET_SIZE = 1000;
+            // Read parameters from sliders
+            pointSize = parseFloat(document.getElementById('size').value);
+            depthMultiplier = parseFloat(document.getElementById('depth').value);
+            breathSpeed = parseFloat(document.getElementById('breath').value);
+
+            // Crop to square (take smallest dimension)
+            const TARGET_SIZE = Math.min(img.width, img.height);
             const canvas = document.createElement('canvas');
             canvas.width = TARGET_SIZE;
             canvas.height = TARGET_SIZE;
@@ -231,7 +249,7 @@
 
             // PointsMaterial with vertexColors
             material = new THREE.PointsMaterial({
-                size: 0.02,
+                size: pointSize,
                 vertexColors: true,
                 transparent: true,
                 opacity: 1.0,
@@ -246,22 +264,18 @@
             document.getElementById('controls').classList.remove('hidden');
         }
 
-        function updateSize(val) {
-            document.getElementById('val-size').textContent = parseFloat(val).toFixed(3);
-            if (material) material.size = parseFloat(val);
-        }
+        function applySettings() {
+            if (!currentImage) {
+                alert('No image loaded');
+                return;
+            }
 
-        function updateDepth(val) {
-            document.getElementById('val-depth').textContent = parseFloat(val).toFixed(1) + 'x';
-            depthMultiplier = parseFloat(val);
-        }
-
-        function updateBreath(val) {
-            document.getElementById('val-breath').textContent = parseFloat(val).toFixed(1);
-            breathSpeed = parseFloat(val);
+            // Regenerate with new settings
+            generate(currentImage);
         }
 
         function reset() {
+            currentImage = null;
             if (particles) scene.remove(particles);
             document.getElementById('preview').innerHTML = 'Empty';
             document.getElementById('file-input').value = '';
