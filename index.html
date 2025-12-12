@@ -169,15 +169,22 @@
                 return;
             }
 
-            // Extract pixel data
+            // Force resize/crop to 1000x1000 square
+            const TARGET_SIZE = 1000;
             const canvas = document.createElement('canvas');
-            const width = img.width;
-            const height = img.height;
-            canvas.width = width;
-            canvas.height = height;
+            canvas.width = TARGET_SIZE;
+            canvas.height = TARGET_SIZE;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            const imageData = ctx.getImageData(0, 0, width, height);
+
+            // Crop to center square
+            const sourceSize = Math.min(img.width, img.height);
+            const offsetX = (img.width - sourceSize) / 2;
+            const offsetY = (img.height - sourceSize) / 2;
+
+            // Draw cropped and resized image
+            ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+
+            const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
             const data = imageData.data;
 
             // Create particle for each pixel (1 pixel = 1 particle)
@@ -186,23 +193,21 @@
             const initialZ = [];
 
             const scaleFactor = 0.5;
-            const halfW = width / 2;
-            const halfH = height / 2;
+            const halfSize = TARGET_SIZE / 2;
 
-            // Calculate depth to create a CUBE (not a flat rectangle)
-            const maxDim = Math.max(width, height);
-            const depthSpread = maxDim * scaleFactor * depthMultiplier;
+            // TRUE CUBE: depth = width = height = 1000
+            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
 
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    const i = (y * width + x) * 4;
+            for (let y = 0; y < TARGET_SIZE; y++) {
+                for (let x = 0; x < TARGET_SIZE; x++) {
+                    const i = (y * TARGET_SIZE + x) * 4;
                     const alpha = data[i + 3];
 
                     // Only create particle if pixel is visible
                     if (alpha > 30) {
                         // Position
-                        const px = (x - halfW) * scaleFactor;
-                        const py = -(y - halfH) * scaleFactor;
+                        const px = (x - halfSize) * scaleFactor;
+                        const py = -(y - halfSize) * scaleFactor;
                         const pz = (Math.random() - 0.5) * depthSpread;
 
                         positions.push(px, py, pz);
