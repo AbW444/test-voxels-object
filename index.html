@@ -1,105 +1,289 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volumetric Particle Visualization System</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Volumetric Particle System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #fff; color: #000; overflow: hidden; }
+
+        h1 { position: fixed; top: 20px; left: 20px; z-index: 100; font-size: 28px; }
+
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        #ui { position: fixed; top: 100px; left: 20px; z-index: 100; background: rgba(255,255,255,0.95);
+              padding: 20px; border: 2px solid #000; max-width: 300px; }
+
+        button { display: block; width: 100%; margin: 10px 0; padding: 12px; background: #000; color: #fff;
+                 border: none; cursor: pointer; font-size: 14px; font-weight: bold; }
+        button:hover { background: #333; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+
+        .preview { width: 120px; height: 120px; border: 2px solid #000; margin: 10px 0;
+                   display: flex; align-items: center; justify-content: center; background: #f5f5f5; }
+        .preview img { max-width: 100%; max-height: 100%; }
+
+        input[type="file"] { display: none; }
+
+        label { font-size: 12px; font-weight: bold; margin-top: 10px; display: block; }
+
+        .hidden { display: none !important; }
+
+        #controls { margin-top: 20px; padding-top: 20px; border-top: 2px solid #000; }
+        .slider { width: 100%; }
+        .value { font-family: monospace; float: right; }
+    </style>
 </head>
 <body>
-    <!-- Titre académique en haut à gauche -->
-    <header>
-        <h1>Volumetric Particle Visualization System</h1>
-        <p class="subtitle">Computational Design Research / Multi-State Depth-Based Image Interpolation</p>
-    </header>
+    <h1>Volumetric Particles</h1>
 
-    <!-- Conteneur Three.js au centre -->
-    <div id="canvas-container"></div>
+    <div id="canvas"></div>
 
-    <!-- Zone de drag & drop -->
-    <div id="drop-zone" class="drop-zone">
-        <div class="drop-content">
-            <p class="drop-title">Sélectionnez deux images</p>
-            <p class="drop-subtitle">Format recommandé : 1080×1080px (carré)</p>
-            <p class="drop-hint">Glissez-déposez ou cliquez sur les boutons</p>
-            <div class="drop-slots">
-                <div class="drop-slot" id="slot-a">
-                    <span class="slot-label">Image A</span>
-                    <div class="slot-preview" id="preview-a">
-                        <span class="preview-placeholder">Vide</span>
-                    </div>
-                    <button class="select-button" id="select-button-a">Sélectionner Image A</button>
-                </div>
-                <div class="drop-slot" id="slot-b">
-                    <span class="slot-label">Image B</span>
-                    <div class="slot-preview" id="preview-b">
-                        <span class="preview-placeholder">Vide</span>
-                    </div>
-                    <button class="select-button" id="select-button-b">Sélectionner Image B</button>
-                </div>
-            </div>
-            <button id="generate-button" class="generate-button hidden">Générer le volume particulaire</button>
+    <div id="ui">
+        <label>Image A:</label>
+        <div class="preview" id="prev-a">Empty</div>
+        <button onclick="document.getElementById('file-a').click()">SELECT IMAGE A</button>
+        <input type="file" id="file-a" accept="image/*">
+
+        <label>Image B:</label>
+        <div class="preview" id="prev-b">Empty</div>
+        <button onclick="document.getElementById('file-b').click()">SELECT IMAGE B</button>
+        <input type="file" id="file-b" accept="image/*">
+
+        <button id="gen-btn" disabled onclick="generate()">GENERATE VOLUME</button>
+
+        <div id="controls" class="hidden">
+            <label>Point Size: <span class="value" id="val-size">2.0</span></label>
+            <input type="range" class="slider" id="size" min="0.5" max="5" step="0.1" value="2" oninput="updateSize(this.value)">
+
+            <label>Interpolation Power: <span class="value" id="val-power">1.0</span></label>
+            <input type="range" class="slider" id="power" min="0.1" max="3" step="0.1" value="1" oninput="updatePower(this.value)">
+
+            <button onclick="reset()">RESET</button>
         </div>
     </div>
 
-    <!-- Inputs file cachés -->
-    <input type="file" id="file-input-a" accept="image/*" style="display: none;">
-    <input type="file" id="file-input-b" accept="image/*" style="display: none;">
-
-    <!-- Panneau de contrôle -->
-    <div id="controls-panel" class="controls-panel hidden">
-        <h2>Paramètres volumétriques</h2>
-
-        <div class="control-group">
-            <label for="particle-density">Densité de particules</label>
-            <input type="range" id="particle-density" min="1" max="10" step="1" value="4">
-            <span class="value-display" id="density-value">4</span>
-        </div>
-
-        <div class="control-group">
-            <label for="z-dispersion">Dispersion en profondeur (Z)</label>
-            <input type="range" id="z-dispersion" min="0" max="200" step="1" value="50">
-            <span class="value-display" id="dispersion-value">50</span>
-        </div>
-
-        <div class="control-group">
-            <label for="point-size">Taille des particules</label>
-            <input type="range" id="point-size" min="0.5" max="5" step="0.1" value="1.5">
-            <span class="value-display" id="size-value">1.5</span>
-        </div>
-
-        <div class="control-group">
-            <label for="interpolation-power">Intensité d'interpolation</label>
-            <input type="range" id="interpolation-power" min="0.1" max="5" step="0.1" value="1.0">
-            <span class="value-display" id="interpolation-value">1.0</span>
-        </div>
-
-        <div class="control-group">
-            <label for="interpolation-center">Centre d'interpolation (Z)</label>
-            <input type="range" id="interpolation-center" min="-100" max="100" step="1" value="0">
-            <span class="value-display" id="center-value">0</span>
-        </div>
-
-        <div class="control-group">
-            <label for="rotation-speed">Vitesse de rotation auto</label>
-            <input type="range" id="rotation-speed" min="0" max="2" step="0.1" value="0">
-            <span class="value-display" id="rotation-value">0</span>
-        </div>
-
-        <button id="reset-button" class="reset-button">Réinitialiser les images</button>
-    </div>
-
-    <!-- Instructions -->
-    <div id="instructions" class="instructions">
-        <p>Glissez deux images dans les zones prévues pour générer le volume particulaire</p>
-        <p>Utilisez la souris pour manipuler le volume à 360°</p>
-    </div>
-
-    <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, particles;
+        let imageA, imageB;
+        let material;
 
-    <!-- Scripts du projet -->
-    <script src="js/VolumetricParticles.js"></script>
-    <script src="js/main.js"></script>
+        // Init Three.js
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+            camera.position.z = 600;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas').appendChild(renderer.domElement);
+
+            animate();
+        }
+
+        // Load image A
+        document.getElementById('file-a').onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const img = new Image();
+                img.onload = function() {
+                    imageA = extractImageData(img);
+                    document.getElementById('prev-a').innerHTML = '<img src="' + ev.target.result + '">';
+                    checkReady();
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        // Load image B
+        document.getElementById('file-b').onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const img = new Image();
+                img.onload = function() {
+                    imageB = extractImageData(img);
+                    document.getElementById('prev-b').innerHTML = '<img src="' + ev.target.result + '">';
+                    checkReady();
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        function extractImageData(img) {
+            const canvas = document.createElement('canvas');
+            const size = Math.min(img.width, img.height);
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, size, size);
+            return ctx.getImageData(0, 0, size, size);
+        }
+
+        function checkReady() {
+            if (imageA && imageB) {
+                document.getElementById('gen-btn').disabled = false;
+            }
+        }
+
+        function generate() {
+            const res = Math.min(imageA.width, imageB.width);
+            const step = 3;
+            const count = Math.floor((res / step) * (res / step));
+
+            const positions = new Float32Array(count * 3);
+            const colorsA = new Float32Array(count * 3);
+            const colorsB = new Float32Array(count * 3);
+
+            let idx = 0;
+            const half = res / 2;
+
+            for (let y = 0; y < res; y += step) {
+                for (let x = 0; x < res; x += step) {
+                    positions[idx * 3] = x - half;
+                    positions[idx * 3 + 1] = -(y - half);
+                    positions[idx * 3 + 2] = (Math.random() - 0.5) * 100;
+
+                    const pi = (y * res + x) * 4;
+
+                    colorsA[idx * 3] = imageA.data[pi] / 255;
+                    colorsA[idx * 3 + 1] = imageA.data[pi + 1] / 255;
+                    colorsA[idx * 3 + 2] = imageA.data[pi + 2] / 255;
+
+                    colorsB[idx * 3] = imageB.data[pi] / 255;
+                    colorsB[idx * 3 + 1] = imageB.data[pi + 1] / 255;
+                    colorsB[idx * 3 + 2] = imageB.data[pi + 2] / 255;
+
+                    idx++;
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('colorA', new THREE.BufferAttribute(colorsA, 3));
+            geo.setAttribute('colorB', new THREE.BufferAttribute(colorsB, 3));
+
+            material = new THREE.ShaderMaterial({
+                uniforms: {
+                    pointSize: { value: 2.0 },
+                    interpPower: { value: 1.0 }
+                },
+                vertexShader: `
+                    attribute vec3 colorA;
+                    attribute vec3 colorB;
+                    uniform float pointSize;
+                    varying vec3 vColorA;
+                    varying vec3 vColorB;
+                    varying float vZ;
+
+                    void main() {
+                        vColorA = colorA;
+                        vColorB = colorB;
+                        vZ = position.z;
+                        vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+                        gl_Position = projectionMatrix * mvPos;
+                        gl_PointSize = pointSize * (300.0 / -mvPos.z);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColorA;
+                    varying vec3 vColorB;
+                    varying float vZ;
+                    uniform float interpPower;
+
+                    void main() {
+                        float t = clamp(vZ / 50.0 * 0.5 + 0.5, 0.0, 1.0);
+                        t = pow(t, interpPower);
+                        vec3 color = mix(vColorA, vColorB, t);
+
+                        vec2 center = gl_PointCoord - vec2(0.5);
+                        float dist = length(center);
+                        float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
+
+                        gl_FragColor = vec4(color, alpha);
+                        if (alpha < 0.01) discard;
+                    }
+                `,
+                transparent: true,
+                depthWrite: false
+            });
+
+            if (particles) scene.remove(particles);
+            particles = new THREE.Points(geo, material);
+            scene.add(particles);
+
+            document.getElementById('controls').classList.remove('hidden');
+        }
+
+        function updateSize(val) {
+            document.getElementById('val-size').textContent = parseFloat(val).toFixed(1);
+            if (material) material.uniforms.pointSize.value = parseFloat(val);
+        }
+
+        function updatePower(val) {
+            document.getElementById('val-power').textContent = parseFloat(val).toFixed(1);
+            if (material) material.uniforms.interpPower.value = parseFloat(val);
+        }
+
+        function reset() {
+            if (particles) scene.remove(particles);
+            imageA = null;
+            imageB = null;
+            document.getElementById('prev-a').innerHTML = 'Empty';
+            document.getElementById('prev-b').innerHTML = 'Empty';
+            document.getElementById('file-a').value = '';
+            document.getElementById('file-b').value = '';
+            document.getElementById('gen-btn').disabled = true;
+            document.getElementById('controls').classList.add('hidden');
+        }
+
+        // Mouse control
+        let isDrag = false;
+        let prevMouse = { x: 0, y: 0 };
+
+        renderer.domElement.onmousedown = function(e) {
+            isDrag = true;
+            prevMouse = { x: e.clientX, y: e.clientY };
+        };
+
+        renderer.domElement.onmousemove = function(e) {
+            if (!isDrag || !particles) return;
+            const dx = e.clientX - prevMouse.x;
+            const dy = e.clientY - prevMouse.y;
+            particles.rotation.y += dx * 0.01;
+            particles.rotation.x += dy * 0.01;
+            prevMouse = { x: e.clientX, y: e.clientY };
+        };
+
+        document.onmouseup = function() {
+            isDrag = false;
+        };
+
+        // Animation
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        // Resize
+        window.onresize = function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        // Start
+        window.onload = init;
+    </script>
 </body>
 </html>
