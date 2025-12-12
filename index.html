@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volumetric Particle Visualization System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Titre académique en haut à gauche -->
+    <header>
+        <h1>Volumetric Particle Visualization System</h1>
+        <p class="subtitle">Computational Design Research / Multi-State Depth-Based Image Interpolation</p>
+    </header>
+
+    <!-- Conteneur Three.js au centre -->
+    <div id="canvas-container"></div>
+
+    <!-- Zone de drag & drop -->
+    <div id="drop-zone" class="drop-zone">
+        <div class="drop-content">
+            <p class="drop-title">Glissez deux images ici</p>
+            <p class="drop-subtitle">Format recommandé : 1080×1080px (carré)</p>
+            <div class="drop-slots">
+                <div class="drop-slot" id="slot-a">
+                    <span class="slot-label">Image A</span>
+                    <div class="slot-preview" id="preview-a"></div>
+                </div>
+                <div class="drop-slot" id="slot-b">
+                    <span class="slot-label">Image B</span>
+                    <div class="slot-preview" id="preview-b"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panneau de contrôle -->
+    <div id="controls-panel" class="controls-panel hidden">
+        <h2>Paramètres volumétriques</h2>
+
+        <div class="control-group">
+            <label for="particle-density">Densité de particules</label>
+            <input type="range" id="particle-density" min="1" max="10" step="1" value="4">
+            <span class="value-display" id="density-value">4</span>
+        </div>
+
+        <div class="control-group">
+            <label for="z-dispersion">Dispersion en profondeur (Z)</label>
+            <input type="range" id="z-dispersion" min="0" max="200" step="1" value="50">
+            <span class="value-display" id="dispersion-value">50</span>
+        </div>
+
+        <div class="control-group">
+            <label for="point-size">Taille des particules</label>
+            <input type="range" id="point-size" min="0.5" max="5" step="0.1" value="1.5">
+            <span class="value-display" id="size-value">1.5</span>
+        </div>
+
+        <div class="control-group">
+            <label for="interpolation-power">Intensité d'interpolation</label>
+            <input type="range" id="interpolation-power" min="0.1" max="5" step="0.1" value="1.0">
+            <span class="value-display" id="interpolation-value">1.0</span>
+        </div>
+
+        <div class="control-group">
+            <label for="interpolation-center">Centre d'interpolation (Z)</label>
+            <input type="range" id="interpolation-center" min="-100" max="100" step="1" value="0">
+            <span class="value-display" id="center-value">0</span>
+        </div>
+
+        <div class="control-group">
+            <label for="rotation-speed">Vitesse de rotation auto</label>
+            <input type="range" id="rotation-speed" min="0" max="2" step="0.1" value="0">
+            <span class="value-display" id="rotation-value">0</span>
+        </div>
+
+        <button id="reset-button" class="reset-button">Réinitialiser les images</button>
+    </div>
+
+    <!-- Instructions -->
+    <div id="instructions" class="instructions">
+        <p>Glissez deux images dans les zones prévues pour générer le volume particulaire</p>
+        <p>Utilisez la souris pour manipuler le volume à 360°</p>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+
+    <!-- Scripts du projet -->
+    <script src="js/VolumetricParticles.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
