@@ -40,24 +40,20 @@
     <div id="canvas"></div>
 
     <div id="ui">
-        <label>Image A:</label>
-        <div class="preview" id="prev-a">Empty</div>
-        <button onclick="document.getElementById('file-a').click()">SELECT IMAGE A</button>
-        <input type="file" id="file-a" accept="image/*">
-
-        <label>Image B:</label>
-        <div class="preview" id="prev-b">Empty</div>
-        <button onclick="document.getElementById('file-b').click()">SELECT IMAGE B</button>
-        <input type="file" id="file-b" accept="image/*">
-
-        <button id="gen-btn" disabled onclick="generate()">GENERATE VOLUME</button>
+        <label>Select Image:</label>
+        <div class="preview" id="preview">Empty</div>
+        <button onclick="document.getElementById('file-input').click()">LOAD IMAGE</button>
+        <input type="file" id="file-input" accept="image/*">
 
         <div id="controls" class="hidden">
-            <label>Point Size: <span class="value" id="val-size">2.0</span></label>
-            <input type="range" class="slider" id="size" min="0.5" max="5" step="0.1" value="2" oninput="updateSize(this.value)">
+            <label>Point Size: <span class="value" id="val-size">0.02</span></label>
+            <input type="range" class="slider" id="size" min="0.01" max="0.1" step="0.001" value="0.02" oninput="updateSize(this.value)">
 
-            <label>Interpolation Power: <span class="value" id="val-power">1.0</span></label>
-            <input type="range" class="slider" id="power" min="0.1" max="3" step="0.1" value="1" oninput="updatePower(this.value)">
+            <label>Depth Spread: <span class="value" id="val-depth">10</span></label>
+            <input type="range" class="slider" id="depth" min="1" max="50" step="1" value="10" oninput="updateDepth(this.value)">
+
+            <label>Breath Speed: <span class="value" id="val-breath">0.5</span></label>
+            <input type="range" class="slider" id="breath" min="0" max="2" step="0.1" value="0.5" oninput="updateBreath(this.value)">
 
             <button onclick="reset()">RESET</button>
         </div>
@@ -66,27 +62,29 @@
     <script src="three.min.js"></script>
     <script>
         let scene, camera, renderer, particles;
-        let imageA, imageB;
-        let material;
+        let geometry, material;
+        let breathSpeed = 0.5;
+        let depthSpread = 10;
+        let time = 0;
 
         // Init Three.js
         function init() {
             if (typeof THREE === 'undefined') {
-                alert('THREE.js failed to load. Check your internet connection.');
+                alert('THREE.js failed to load.');
                 return;
             }
 
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xffffff);
+            scene.background = new THREE.Color(0x000000);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-            camera.position.z = 600;
+            camera.position.z = 300;
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.getElementById('canvas').appendChild(renderer.domElement);
 
-            // Mouse control (AFTER renderer is created)
+            // Mouse control
             let isDrag = false;
             let prevMouse = { x: 0, y: 0 };
 
@@ -99,8 +97,8 @@
                 if (!isDrag || !particles) return;
                 const dx = e.clientX - prevMouse.x;
                 const dy = e.clientY - prevMouse.y;
-                particles.rotation.y += dx * 0.01;
-                particles.rotation.x += dy * 0.01;
+                particles.rotation.y += dx * 0.005;
+                particles.rotation.x += dy * 0.005;
                 prevMouse = { x: e.clientX, y: e.clientY };
             };
 
@@ -111,8 +109,8 @@
             animate();
         }
 
-        // Load image A
-        document.getElementById('file-a').onchange = function(e) {
+        // Load image
+        document.getElementById('file-input').onchange = function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
@@ -120,168 +118,131 @@
             reader.onload = function(ev) {
                 const img = new Image();
                 img.onload = function() {
-                    imageA = extractImageData(img);
-                    document.getElementById('prev-a').innerHTML = '<img src="' + ev.target.result + '">';
-                    checkReady();
+                    document.getElementById('preview').innerHTML = '<img src="' + ev.target.result + '">';
+                    generate(img);
                 };
                 img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
         };
 
-        // Load image B
-        document.getElementById('file-b').onchange = function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                const img = new Image();
-                img.onload = function() {
-                    imageB = extractImageData(img);
-                    document.getElementById('prev-b').innerHTML = '<img src="' + ev.target.result + '">';
-                    checkReady();
-                };
-                img.src = ev.target.result;
-            };
-            reader.readAsDataURL(file);
-        };
-
-        function extractImageData(img) {
-            const canvas = document.createElement('canvas');
-            const size = Math.min(img.width, img.height);
-            canvas.width = size;
-            canvas.height = size;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, size, size);
-            return ctx.getImageData(0, 0, size, size);
-        }
-
-        function checkReady() {
-            if (imageA && imageB) {
-                document.getElementById('gen-btn').disabled = false;
-            }
-        }
-
-        function generate() {
+        function generate(img) {
             if (typeof THREE === 'undefined') {
-                alert('THREE.js not loaded. Refresh the page.');
+                alert('THREE.js not loaded.');
                 return;
             }
 
-            const res = Math.min(imageA.width, imageB.width);
-            const step = 3;
-            const count = Math.floor((res / step) * (res / step));
+            // Extract pixel data
+            const canvas = document.createElement('canvas');
+            const width = img.width;
+            const height = img.height;
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
 
-            const positions = new Float32Array(count * 3);
-            const colorsA = new Float32Array(count * 3);
-            const colorsB = new Float32Array(count * 3);
+            // Create particle for each pixel (1 pixel = 1 particle)
+            const positions = [];
+            const colors = [];
+            const initialZ = [];
 
-            let idx = 0;
-            const half = res / 2;
+            const scaleFactor = 0.5;
+            const halfW = width / 2;
+            const halfH = height / 2;
 
-            for (let y = 0; y < res; y += step) {
-                for (let x = 0; x < res; x += step) {
-                    positions[idx * 3] = x - half;
-                    positions[idx * 3 + 1] = -(y - half);
-                    positions[idx * 3 + 2] = (Math.random() - 0.5) * 100;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = (y * width + x) * 4;
+                    const alpha = data[i + 3];
 
-                    const pi = (y * res + x) * 4;
+                    // Only create particle if pixel is visible
+                    if (alpha > 30) {
+                        // Position
+                        const px = (x - halfW) * scaleFactor;
+                        const py = -(y - halfH) * scaleFactor;
+                        const pz = (Math.random() - 0.5) * depthSpread;
 
-                    colorsA[idx * 3] = imageA.data[pi] / 255;
-                    colorsA[idx * 3 + 1] = imageA.data[pi + 1] / 255;
-                    colorsA[idx * 3 + 2] = imageA.data[pi + 2] / 255;
+                        positions.push(px, py, pz);
+                        initialZ.push(pz);
 
-                    colorsB[idx * 3] = imageB.data[pi] / 255;
-                    colorsB[idx * 3 + 1] = imageB.data[pi + 1] / 255;
-                    colorsB[idx * 3 + 2] = imageB.data[pi + 2] / 255;
-
-                    idx++;
+                        // Color directly from pixel
+                        colors.push(
+                            data[i] / 255,
+                            data[i + 1] / 255,
+                            data[i + 2] / 255
+                        );
+                    }
                 }
             }
 
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geo.setAttribute('colorA', new THREE.BufferAttribute(colorsA, 3));
-            geo.setAttribute('colorB', new THREE.BufferAttribute(colorsB, 3));
+            // Create geometry
+            geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.setAttribute('initialZ', new THREE.Float32BufferAttribute(initialZ, 1));
 
-            material = new THREE.ShaderMaterial({
-                uniforms: {
-                    pointSize: { value: 2.0 },
-                    interpPower: { value: 1.0 }
-                },
-                vertexShader: `
-                    attribute vec3 colorA;
-                    attribute vec3 colorB;
-                    uniform float pointSize;
-                    varying vec3 vColorA;
-                    varying vec3 vColorB;
-                    varying float vZ;
-
-                    void main() {
-                        vColorA = colorA;
-                        vColorB = colorB;
-                        vZ = position.z;
-                        vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-                        gl_Position = projectionMatrix * mvPos;
-                        gl_PointSize = pointSize * (300.0 / -mvPos.z);
-                    }
-                `,
-                fragmentShader: `
-                    varying vec3 vColorA;
-                    varying vec3 vColorB;
-                    varying float vZ;
-                    uniform float interpPower;
-
-                    void main() {
-                        float t = clamp(vZ / 50.0 * 0.5 + 0.5, 0.0, 1.0);
-                        t = pow(t, interpPower);
-                        vec3 color = mix(vColorA, vColorB, t);
-
-                        vec2 center = gl_PointCoord - vec2(0.5);
-                        float dist = length(center);
-                        float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
-
-                        gl_FragColor = vec4(color, alpha);
-                        if (alpha < 0.01) discard;
-                    }
-                `,
+            // PointsMaterial with vertexColors
+            material = new THREE.PointsMaterial({
+                size: 0.02,
+                vertexColors: true,
                 transparent: true,
-                depthWrite: false
+                opacity: 1.0,
+                sizeAttenuation: false
             });
 
             if (particles) scene.remove(particles);
-            particles = new THREE.Points(geo, material);
+            particles = new THREE.Points(geometry, material);
             scene.add(particles);
 
             document.getElementById('controls').classList.remove('hidden');
         }
 
         function updateSize(val) {
-            document.getElementById('val-size').textContent = parseFloat(val).toFixed(1);
-            if (material) material.uniforms.pointSize.value = parseFloat(val);
+            document.getElementById('val-size').textContent = parseFloat(val).toFixed(3);
+            if (material) material.size = parseFloat(val);
         }
 
-        function updatePower(val) {
-            document.getElementById('val-power').textContent = parseFloat(val).toFixed(1);
-            if (material) material.uniforms.interpPower.value = parseFloat(val);
+        function updateDepth(val) {
+            document.getElementById('val-depth').textContent = val;
+            depthSpread = parseFloat(val);
+        }
+
+        function updateBreath(val) {
+            document.getElementById('val-breath').textContent = parseFloat(val).toFixed(1);
+            breathSpeed = parseFloat(val);
         }
 
         function reset() {
             if (particles) scene.remove(particles);
-            imageA = null;
-            imageB = null;
-            document.getElementById('prev-a').innerHTML = 'Empty';
-            document.getElementById('prev-b').innerHTML = 'Empty';
-            document.getElementById('file-a').value = '';
-            document.getElementById('file-b').value = '';
-            document.getElementById('gen-btn').disabled = true;
+            document.getElementById('preview').innerHTML = 'Empty';
+            document.getElementById('file-input').value = '';
             document.getElementById('controls').classList.add('hidden');
         }
 
-        // Animation
+        // Animation with subtle breathing movement
         function animate() {
             requestAnimationFrame(animate);
+
+            time += 0.001 * breathSpeed;
+
+            // Subtle breath movement on Z axis
+            if (particles && geometry) {
+                const positions = geometry.attributes.position.array;
+                const initialZs = geometry.attributes.initialZ.array;
+
+                for (let i = 0; i < positions.length / 3; i++) {
+                    const idx = i * 3 + 2;
+                    // Micro-variation on Z: initial + subtle sine wave
+                    const epsilon = 0.3 * breathSpeed;
+                    const breathOffset = Math.sin(time + i * 0.01) * epsilon;
+                    positions[idx] = initialZs[i] + breathOffset;
+                }
+
+                geometry.attributes.position.needsUpdate = true;
+            }
+
             renderer.render(scene, camera);
         }
 
