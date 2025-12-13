@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Volumetric Particle System</title>
+    <title>Stratified Volume - Prototype 3.0</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -40,13 +40,14 @@
         button.small { padding: 8px; font-size: 10px; opacity: 0.7; }
         button.small:hover { opacity: 1; }
 
-        .preview { width: 100%; aspect-ratio: 1; border-radius: 6px; margin: 8px 0;
-                   display: flex; align-items: center; justify-content: center;
+        .preview { width: 48%; aspect-ratio: 1; border-radius: 6px; margin: 8px 0;
+                   display: inline-flex; align-items: center; justify-content: center;
                    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
                    overflow: hidden; font-size: 10px; opacity: 0.4; }
         .preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
-
         .preview.loaded { opacity: 1; }
+
+        .preview-container { display: flex; gap: 2%; }
 
         input[type="file"] { display: none; }
 
@@ -112,9 +113,6 @@
         .shape-btn:hover { background: rgba(255,255,255,0.2); transform: none; }
         .shape-btn.active { background: rgba(255,255,255,0.3);
                             border-color: rgba(255,255,255,0.5); }
-
-        #mode-3d-btn { width: auto; padding: 0 12px; font-size: 10px; margin-left: 8px;
-                       border-left: 1px solid rgba(255,255,255,0.3); }
     </style>
 </head>
 <body>
@@ -128,15 +126,20 @@
         <button class="shape-btn" data-shape="square" title="Square">■</button>
         <button class="shape-btn" data-shape="diamond" title="Diamond">◆</button>
         <button class="shape-btn" data-shape="star" title="Star">★</button>
-        <button class="shape-btn" id="mode-3d-btn" title="Toggle 3D Mode">3D</button>
     </div>
     <div id="canvas"></div>
 
     <div id="ui">
         <div id="load-section">
-            <div class="preview" id="preview">Empty</div>
-            <button onclick="document.getElementById('file-input').click()">Load Image</button>
-            <input type="file" id="file-input" accept="image/*">
+            <label>Load Two Images (A & B)</label>
+            <div class="preview-container">
+                <div class="preview" id="preview-a">Image A</div>
+                <div class="preview" id="preview-b">Image B</div>
+            </div>
+            <button onclick="document.getElementById('file-input-a').click()">Load Image A (Near)</button>
+            <input type="file" id="file-input-a" accept="image/*">
+            <button onclick="document.getElementById('file-input-b').click()">Load Image B (Far)</button>
+            <input type="file" id="file-input-b" accept="image/*">
         </div>
 
         <div id="controls" class="hidden">
@@ -187,16 +190,31 @@
 
             <div class="param-row">
                 <div class="param-header">
-                    <label>BREATH SPEED</label>
+                    <label>TRANSITION WIDTH</label>
                     <div class="param-controls">
-                        <button class="arrow-btn" data-param="breath" data-dir="down">▼</button>
-                        <span class="value" id="val-breath" data-param="breath">1.0</span>
-                        <button class="arrow-btn" data-param="breath" data-dir="up">▲</button>
+                        <button class="arrow-btn" data-param="transition" data-dir="down">▼</button>
+                        <span class="value" id="val-transition" data-param="transition">0.5</span>
+                        <button class="arrow-btn" data-param="transition" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="breath" min="0" max="3.0" step="0.1" value="1.0">
-                    <div class="center-mark" style="left: 33.3%;"></div>
+                    <input type="range" class="slider" id="transition" min="0.1" max="1.0" step="0.05" value="0.5">
+                    <div class="center-mark" style="left: 44.4%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>STRATIFICATION CENTER</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="stratCenter" data-dir="down">▼</button>
+                        <span class="value" id="val-stratCenter" data-param="stratCenter">0.0</span>
+                        <button class="arrow-btn" data-param="stratCenter" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="stratCenter" min="-1.0" max="1.0" step="0.05" value="0.0">
+                    <div class="center-mark" style="left: 50%;"></div>
                 </div>
             </div>
 
@@ -220,7 +238,7 @@
 
             <button onclick="applySettings()">Apply</button>
             <button onclick="resetToDefaults()">Reset to Defaults</button>
-            <button class="small" onclick="changeImage()">Change Image</button>
+            <button class="small" onclick="reloadImages()">Reload Images</button>
         </div>
 
         <p class="hint">Drag to rotate • Scroll to zoom</p>
@@ -228,36 +246,37 @@
 
     <script src="three.min.js"></script>
     <script>
+        // === GLOBAL STATE ===
         let scene, camera, renderer, particles;
         let geometry, material;
-        let breathSpeed = 0.5;
         let depthMultiplier = 1.0;
         let pointSize = 2.0;
         let particleDensity = 1;
         let hideBlack = false;
         let blackThreshold = 30;
-        let time = 0;
-        let currentImage = null;
+        let transitionWidth = 0.5;
+        let stratificationCenter = 0.0;
+        let currentImageA = null;
+        let currentImageB = null;
         let currentShape = 'circle';
-        let is3DMode = false;
         let regenerateTimeout;
 
-        // Real-time regeneration with debounce
-        function scheduleRegenerate() {
-            clearTimeout(regenerateTimeout);
-            regenerateTimeout = setTimeout(() => {
-                if (currentImage) generate(currentImage);
-            }, 150); // 150ms debounce to avoid too many regenerations
-        }
-
-        // Parameter control system
+        // === PARAMETER CONFIGURATION ===
         const paramConfigs = {
             size: { min: 0.1, max: 2.0, step: 0.01, decimals: 2, suffix: '' },
             density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
             depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
-            breath: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            transition: { min: 0.1, max: 1.0, step: 0.05, decimals: 2, suffix: '' },
+            stratCenter: { min: -1.0, max: 1.0, step: 0.05, decimals: 2, suffix: '' },
             blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
         };
+
+        function scheduleRegenerate() {
+            clearTimeout(regenerateTimeout);
+            regenerateTimeout = setTimeout(() => {
+                if (currentImageA && currentImageB) generate(currentImageA, currentImageB);
+            }, 150);
+        }
 
         function updateValueDisplay(param) {
             const slider = document.getElementById(param);
@@ -273,13 +292,15 @@
                 const slider = document.getElementById(param);
                 slider.addEventListener('input', function() {
                     updateValueDisplay(param);
+                    // Update global variables for stratification parameters
+                    if (param === 'transition') transitionWidth = parseFloat(this.value);
+                    if (param === 'stratCenter') stratificationCenter = parseFloat(this.value);
                     scheduleRegenerate();
                 });
                 updateValueDisplay(param);
             });
         }
 
-        // Double-click to edit values
         function setupValueEditing() {
             document.querySelectorAll('.value[data-param]').forEach(valueSpan => {
                 valueSpan.addEventListener('dblclick', function() {
@@ -305,6 +326,8 @@
                         newValue = Math.max(config.min, Math.min(config.max, newValue));
                         slider.value = newValue;
                         updateValueDisplay(param);
+                        if (param === 'transition') transitionWidth = newValue;
+                        if (param === 'stratCenter') stratificationCenter = newValue;
                         scheduleRegenerate();
                         input.replaceWith(valueSpan);
                     }
@@ -312,20 +335,14 @@
                     input.addEventListener('blur', finishEdit);
                     input.addEventListener('keydown', function(e) {
                         if (e.key === 'Enter') finishEdit();
-                        if (e.key === 'Escape') {
-                            input.replaceWith(valueSpan);
-                        }
+                        if (e.key === 'Escape') input.replaceWith(valueSpan);
                     });
                 });
             });
         }
 
-        // Arrow buttons with acceleration
-        let arrowInterval;
-        let arrowAcceleration = 1;
-        let arrowStartTime;
-
         function setupArrowButtons() {
+            let arrowInterval, arrowStartTime;
             document.querySelectorAll('.arrow-btn').forEach(btn => {
                 const param = btn.dataset.param;
                 const direction = btn.dataset.dir === 'up' ? 1 : -1;
@@ -334,8 +351,6 @@
                 function incrementValue() {
                     const slider = document.getElementById(param);
                     let value = parseFloat(slider.value);
-
-                    // Calculate acceleration based on hold time
                     const holdTime = Date.now() - arrowStartTime;
                     let speed = 1;
                     if (holdTime > 2000) speed = 10;
@@ -344,9 +359,10 @@
 
                     value += direction * config.step * speed;
                     value = Math.max(config.min, Math.min(config.max, value));
-
                     slider.value = value;
                     updateValueDisplay(param);
+                    if (param === 'transition') transitionWidth = value;
+                    if (param === 'stratCenter') stratificationCenter = value;
                     scheduleRegenerate();
                 }
 
@@ -356,66 +372,48 @@
                     arrowInterval = setInterval(incrementValue, 100);
                 });
 
-                btn.addEventListener('mouseup', stopArrow);
-                btn.addEventListener('mouseleave', stopArrow);
-
-                function stopArrow() {
-                    clearInterval(arrowInterval);
-                }
+                btn.addEventListener('mouseup', () => clearInterval(arrowInterval));
+                btn.addEventListener('mouseleave', () => clearInterval(arrowInterval));
             });
         }
 
-        // Shape texture generators
+        // === SHAPE TEXTURES ===
         function createCircleTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
+            canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d');
-
             ctx.fillStyle = 'white';
             ctx.beginPath();
             ctx.arc(32, 32, 32, 0, Math.PI * 2);
             ctx.fill();
-
             return new THREE.CanvasTexture(canvas);
         }
 
         function createSquareTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
+            canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d');
-
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, 64, 64);
-
             return new THREE.CanvasTexture(canvas);
         }
 
         function createDiamondTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
+            canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d');
-
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.moveTo(32, 0);
-            ctx.lineTo(64, 32);
-            ctx.lineTo(32, 64);
-            ctx.lineTo(0, 32);
-            ctx.closePath();
-            ctx.fill();
-
+            ctx.moveTo(32, 0); ctx.lineTo(64, 32);
+            ctx.lineTo(32, 64); ctx.lineTo(0, 32);
+            ctx.closePath(); ctx.fill();
             return new THREE.CanvasTexture(canvas);
         }
 
         function createStarTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
+            canvas.width = 64; canvas.height = 64;
             const ctx = canvas.getContext('2d');
-
             ctx.fillStyle = 'white';
             ctx.beginPath();
             for (let i = 0; i < 5; i++) {
@@ -425,9 +423,7 @@
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
-            ctx.closePath();
-            ctx.fill();
-
+            ctx.closePath(); ctx.fill();
             return new THREE.CanvasTexture(canvas);
         }
 
@@ -441,7 +437,7 @@
             }
         }
 
-        // Init Three.js
+        // === THREE.JS INITIALIZATION ===
         function init() {
             if (typeof THREE === 'undefined') {
                 alert('THREE.js failed to load.');
@@ -459,8 +455,7 @@
             document.getElementById('canvas').appendChild(renderer.domElement);
 
             // Mouse control
-            let isDrag = false;
-            let prevMouse = { x: 0, y: 0 };
+            let isDrag = false, prevMouse = { x: 0, y: 0 };
 
             renderer.domElement.onmousedown = function(e) {
                 isDrag = true;
@@ -476,298 +471,257 @@
                 prevMouse = { x: e.clientX, y: e.clientY };
             };
 
-            document.onmouseup = function() {
-                isDrag = false;
-            };
+            document.onmouseup = () => isDrag = false;
 
-            // Zoom with mouse wheel
+            // Zoom
             renderer.domElement.addEventListener('wheel', function(e) {
                 e.preventDefault();
-                const zoomSpeed = 0.1;
                 const delta = e.deltaY > 0 ? 1 : -1;
-                camera.position.z += delta * zoomSpeed * camera.position.z;
+                camera.position.z += delta * 0.1 * camera.position.z;
                 camera.position.z = Math.max(50, Math.min(1000, camera.position.z));
             });
 
-            // Setup parameter controls
             setupSliderListeners();
             setupValueEditing();
             setupArrowButtons();
-
             animate();
         }
 
-        // Load image function
-        function loadImageFile(file) {
+        // === IMAGE LOADING ===
+        function loadImageFile(file, target) {
             if (!file || !file.type.startsWith('image/')) return;
 
             const reader = new FileReader();
             reader.onload = function(ev) {
                 const img = new Image();
                 img.onload = function() {
-                    const isFirstLoad = (currentImage === null);
-                    currentImage = img;
-                    document.getElementById('preview').innerHTML = '<img src="' + ev.target.result + '">';
-
-                    // Reset sliders to default ONLY on first load
-                    if (isFirstLoad) {
-                        document.getElementById('size').value = 1.0;
-                        document.getElementById('density').value = 7;
-                        document.getElementById('depth').value = 1.0;
-                        document.getElementById('breath').value = 1.0;
-
-                        updateValueDisplay('size');
-                        updateValueDisplay('density');
-                        updateValueDisplay('depth');
-                        updateValueDisplay('breath');
-
-                        document.getElementById('load-section').classList.add('hidden');
-                        document.getElementById('controls').classList.remove('hidden');
-                        document.getElementById('ui').classList.add('loaded');
-                        document.getElementById('shape-selector').classList.remove('hidden');
+                    if (target === 'a') {
+                        currentImageA = img;
+                        document.getElementById('preview-a').innerHTML = '<img src="' + ev.target.result + '">';
+                        document.getElementById('preview-a').classList.add('loaded');
+                    } else {
+                        currentImageB = img;
+                        document.getElementById('preview-b').innerHTML = '<img src="' + ev.target.result + '">';
+                        document.getElementById('preview-b').classList.add('loaded');
                     }
 
-                    generate(img);
+                    // Show controls when both images are loaded
+                    if (currentImageA && currentImageB) {
+                        const isFirstLoad = document.getElementById('controls').classList.contains('hidden');
+                        if (isFirstLoad) {
+                            document.getElementById('load-section').classList.add('hidden');
+                            document.getElementById('controls').classList.remove('hidden');
+                            document.getElementById('ui').classList.add('loaded');
+                            document.getElementById('shape-selector').classList.remove('hidden');
+                        }
+                        generate(currentImageA, currentImageB);
+                    }
                 };
                 img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
         }
 
-        // File input change
-        document.getElementById('file-input').onchange = function(e) {
-            loadImageFile(e.target.files[0]);
-        };
+        document.getElementById('file-input-a').onchange = e => loadImageFile(e.target.files[0], 'a');
+        document.getElementById('file-input-b').onchange = e => loadImageFile(e.target.files[0], 'b');
 
-        // Drag & drop on preview area
-        const preview = document.getElementById('preview');
+        // === CORE: STRATIFIED VOLUME GENERATION ===
+        /**
+         * PROTOTYPE 3.0 LOGIC:
+         * - Creates a SINGLE particle cloud
+         * - Each particle stores TWO color states (colorA, colorB)
+         * - Z position becomes a semantic axis for stratification
+         * - Shader computes final color via mix(colorA, colorB, f(z))
+         * - No surfaces, no cubes, no discrete layers - continuous volumetric transition
+         */
+        function generate(imgA, imgB) {
+            const TARGET_SIZE = 1000;
 
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            preview.addEventListener(eventName, function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            });
-        });
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            preview.addEventListener(eventName, function() {
-                preview.style.borderColor = 'rgba(255,255,255,0.5)';
-            });
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            preview.addEventListener(eventName, function() {
-                preview.style.borderColor = 'rgba(255,255,255,0.1)';
-            });
-        });
-
-        preview.addEventListener('drop', function(e) {
-            const file = e.dataTransfer.files[0];
-            loadImageFile(file);
-        });
-
-        // Global drag & drop on entire page
-        ['dragenter', 'dragover'].forEach(eventName => {
-            document.body.addEventListener(eventName, function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            });
-        });
-
-        document.body.addEventListener('drop', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                loadImageFile(file);
-            }
-        });
-
-        function generate(img) {
-            if (typeof THREE === 'undefined') {
-                alert('THREE.js not loaded.');
-                return;
-            }
-
-            // Read parameters from sliders
+            // Read parameters
             pointSize = parseFloat(document.getElementById('size').value);
             particleDensity = parseInt(document.getElementById('density').value);
             depthMultiplier = parseFloat(document.getElementById('depth').value);
-            breathSpeed = parseFloat(document.getElementById('breath').value);
+            transitionWidth = parseFloat(document.getElementById('transition').value);
+            stratificationCenter = parseFloat(document.getElementById('stratCenter').value);
+            hideBlack = document.getElementById('hide-black').checked;
+            blackThreshold = parseInt(document.getElementById('blackThreshold').value);
 
-            // Crop to square (take smallest dimension)
-            const TARGET_SIZE = Math.min(img.width, img.height);
-            const step = Math.max(1, Math.floor(10 / particleDensity)); // Higher density = smaller step = more particles
+            const step = Math.floor(15 / particleDensity);
+
+            // Process both images to same size
             const canvas = document.createElement('canvas');
             canvas.width = TARGET_SIZE;
             canvas.height = TARGET_SIZE;
             const ctx = canvas.getContext('2d');
 
-            // Crop to center square
-            const sourceSize = Math.min(img.width, img.height);
-            const offsetX = (img.width - sourceSize) / 2;
-            const offsetY = (img.height - sourceSize) / 2;
+            // Extract image A data
+            const sourceSizeA = Math.min(imgA.width, imgA.height);
+            const offsetXA = (imgA.width - sourceSizeA) / 2;
+            const offsetYA = (imgA.height - sourceSizeA) / 2;
+            ctx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
+            ctx.drawImage(imgA, offsetXA, offsetYA, sourceSizeA, sourceSizeA, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const dataA = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
 
-            // Draw cropped and resized image
-            ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            // Extract image B data
+            const sourceSizeB = Math.min(imgB.width, imgB.height);
+            const offsetXB = (imgB.width - sourceSizeB) / 2;
+            const offsetYB = (imgB.height - sourceSizeB) / 2;
+            ctx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
+            ctx.drawImage(imgB, offsetXB, offsetYB, sourceSizeB, sourceSizeB, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const dataB = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
 
-            const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
-            const data = imageData.data;
-
-            // Create particle for each pixel (1 pixel = 1 particle)
+            // === PARTICLE DATA STRUCTURE ===
+            // Each particle has: position(x,y,z), colorA(r,g,b), colorB(r,g,b)
             const positions = [];
-            const colors = [];
-            const initialZ = [];
+            const colorsA = [];  // Color from image A
+            const colorsB = [];  // Color from image B
 
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
-
-            // TRUE CUBE: depth = width = height
             const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
 
+            // Create unified particle cloud with dual color states
             for (let y = 0; y < TARGET_SIZE; y += step) {
                 for (let x = 0; x < TARGET_SIZE; x += step) {
                     const i = (y * TARGET_SIZE + x) * 4;
-                    const alpha = data[i + 3];
+                    const alphaA = dataA[i + 3];
+                    const alphaB = dataB[i + 3];
 
-                    // Only create particle if pixel is visible
-                    if (alpha > 30) {
-                        // Check if particle should be hidden based on black threshold
-                        const r = data[i];
-                        const g = data[i + 1];
-                        const b = data[i + 2];
-                        const maxColor = Math.max(r, g, b);
+                    // Only create particle if at least one image has visible pixel
+                    if (alphaA > 30 || alphaB > 30) {
+                        const rA = dataA[i], gA = dataA[i+1], bA = dataA[i+2];
+                        const rB = dataB[i], gB = dataB[i+1], bB = dataB[i+2];
 
-                        // Skip black particles if hideBlack is enabled
-                        if (hideBlack && maxColor < blackThreshold) {
+                        // Black filtering: skip if BOTH images are too dark
+                        const maxColorA = Math.max(rA, gA, bA);
+                        const maxColorB = Math.max(rB, gB, bB);
+                        if (hideBlack && maxColorA < blackThreshold && maxColorB < blackThreshold) {
                             continue;
                         }
 
-                        // Position
+                        // Position: Z is distributed randomly for volumetric effect
                         const px = (x - halfSize) * scaleFactor;
                         const py = -(y - halfSize) * scaleFactor;
                         const pz = (Math.random() - 0.5) * depthSpread;
 
                         positions.push(px, py, pz);
-                        initialZ.push(pz);
 
-                        // Color directly from pixel
-                        colors.push(
-                            r / 255,
-                            g / 255,
-                            b / 255
-                        );
+                        // Store both color states
+                        colorsA.push(rA / 255, gA / 255, bA / 255);
+                        colorsB.push(rB / 255, gB / 255, bB / 255);
                     }
                 }
             }
 
+            // Clean up previous particles
             if (particles) {
                 scene.remove(particles);
                 if (particles.geometry) particles.geometry.dispose();
-                if (particles.material) particles.material.dispose();
+                if (particles.material) {
+                    if (particles.material.map) particles.material.map.dispose();
+                    particles.material.dispose();
+                }
             }
 
-            if (is3DMode) {
-                // 3D Mode: Use InstancedMesh with real 3D geometries
-                const count = positions.length / 3;
-                let baseGeometry;
-                const size = pointSize * 3; // Adjusted scale for better visibility
+            // === CREATE SINGLE PARTICLE CLOUD ===
+            geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('colorA', new THREE.Float32BufferAttribute(colorsA, 3));
+            geometry.setAttribute('colorB', new THREE.Float32BufferAttribute(colorsB, 3));
 
-                switch(currentShape) {
-                    case 'square':
-                        baseGeometry = new THREE.BoxGeometry(size, size, size);
-                        break;
-                    case 'circle':
-                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
-                        break;
-                    case 'diamond':
-                        baseGeometry = new THREE.OctahedronGeometry(size * 0.5);
-                        break;
-                    case 'star':
-                        baseGeometry = new THREE.TetrahedronGeometry(size * 0.6);
-                        break;
-                    default:
-                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
+            // === CUSTOM SHADER FOR STRATIFICATION ===
+            // Vertex shader: pass through colorA, colorB, and world Z position
+            const vertexShader = `
+                attribute vec3 colorA;
+                attribute vec3 colorB;
+                varying vec3 vColorA;
+                varying vec3 vColorB;
+                varying float vWorldZ;
+
+                void main() {
+                    vColorA = colorA;
+                    vColorB = colorB;
+
+                    // Calculate world position for Z-depth stratification
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vWorldZ = worldPos.z;
+
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = ${pointSize.toFixed(2)};
+                    gl_Position = projectionMatrix * mvPosition;
                 }
+            `;
 
-                // Use MeshBasicMaterial without vertexColors - we'll use instance colors
-                material = new THREE.MeshBasicMaterial({
-                    color: 0xffffff,
-                    flatShading: true
-                });
+            // Fragment shader: compute final color via Z-dependent mixing
+            const fragmentShader = `
+                uniform sampler2D pointTexture;
+                uniform float transitionWidth;
+                uniform float stratCenter;
+                varying vec3 vColorA;
+                varying vec3 vColorB;
+                varying float vWorldZ;
 
-                particles = new THREE.InstancedMesh(baseGeometry, material, count);
-                particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                void main() {
+                    // Apply shape texture
+                    vec4 texColor = texture2D(pointTexture, gl_PointCoord);
+                    if (texColor.a < 0.5) discard;
 
-                // Create instance color attribute
-                const instanceColors = new Float32Array(count * 3);
-                for (let i = 0; i < count; i++) {
-                    instanceColors[i * 3] = colors[i * 3];
-                    instanceColors[i * 3 + 1] = colors[i * 3 + 1];
-                    instanceColors[i * 3 + 2] = colors[i * 3 + 2];
-                }
-                particles.instanceColor = new THREE.InstancedBufferAttribute(instanceColors, 3);
+                    // === STRATIFICATION LOGIC ===
+                    // Compute mix factor based on normalized Z position
+                    // Z near stratCenter → colorA dominant
+                    // Z far from stratCenter → colorB dominant
+                    // Transition is continuous, no hard edges
 
-                const matrix = new THREE.Matrix4();
-                const color = new THREE.Color();
+                    float normalizedZ = vWorldZ / 250.0; // Normalize to approx range
+                    float distance = normalizedZ - stratCenter;
 
-                for (let i = 0; i < count; i++) {
-                    matrix.setPosition(
-                        positions[i * 3],
-                        positions[i * 3 + 1],
-                        positions[i * 3 + 2]
+                    // Smooth transition using smoothstep for continuous blend
+                    float mixFactor = smoothstep(
+                        -transitionWidth,
+                        transitionWidth,
+                        distance
                     );
-                    particles.setMatrixAt(i, matrix);
-                    color.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]);
-                    particles.setColorAt(i, color);
+
+                    // Final color: continuous mix of both image states
+                    vec3 finalColor = mix(vColorA, vColorB, mixFactor);
+
+                    gl_FragColor = vec4(finalColor, 1.0);
                 }
+            `;
 
-                particles.instanceMatrix.needsUpdate = true;
+            const shapeTexture = getShapeTexture(currentShape);
+            material = new THREE.ShaderMaterial({
+                uniforms: {
+                    pointTexture: { value: shapeTexture },
+                    transitionWidth: { value: transitionWidth },
+                    stratCenter: { value: stratificationCenter }
+                },
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                transparent: true,
+                depthTest: true,
+                depthWrite: false
+            });
 
-                // Store data for animation
-                particles.userData.initialZ = initialZ;
-                particles.userData.positions = positions;
-                particles.userData.is3D = true;
-
-            } else {
-                // 2D Mode: Use Points with textures
-                geometry = new THREE.BufferGeometry();
-                geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                geometry.setAttribute('initialZ', new THREE.Float32BufferAttribute(initialZ, 1));
-
-                const shapeTexture = getShapeTexture(currentShape);
-                material = new THREE.PointsMaterial({
-                    size: pointSize,
-                    vertexColors: true,
-                    transparent: true,
-                    opacity: 1.0,
-                    sizeAttenuation: true,
-                    map: shapeTexture
-                });
-
-                particles = new THREE.Points(geometry, material);
-            }
-
+            particles = new THREE.Points(geometry, material);
             scene.add(particles);
         }
 
+        // === UI FUNCTIONS ===
         function applySettings() {
-            if (!currentImage) {
-                alert('No image loaded');
+            if (!currentImageA || !currentImageB) {
+                alert('Please load both images');
                 return;
             }
-
-            // Regenerate with new settings
-            generate(currentImage);
+            generate(currentImageA, currentImageB);
         }
 
         function resetToDefaults() {
-            // Reset sliders to default (center) values
             document.getElementById('size').value = 1.0;
             document.getElementById('density').value = 7;
             document.getElementById('depth').value = 1.0;
-            document.getElementById('breath').value = 1.0;
+            document.getElementById('transition').value = 0.5;
+            document.getElementById('stratCenter').value = 0.0;
             document.getElementById('blackThreshold').value = 30;
             document.getElementById('hide-black').checked = false;
             hideBlack = false;
@@ -775,95 +729,56 @@
             updateValueDisplay('size');
             updateValueDisplay('density');
             updateValueDisplay('depth');
-            updateValueDisplay('breath');
+            updateValueDisplay('transition');
+            updateValueDisplay('stratCenter');
             updateValueDisplay('blackThreshold');
 
-            // Regenerate if image loaded
-            if (currentImage) {
-                generate(currentImage);
+            transitionWidth = 0.5;
+            stratificationCenter = 0.0;
+
+            if (currentImageA && currentImageB) {
+                generate(currentImageA, currentImageB);
             }
         }
 
-        function changeImage() {
-            // Open file picker - keep current parameters
-            document.getElementById('file-input').click();
+        function reloadImages() {
+            document.getElementById('load-section').classList.remove('hidden');
+            document.getElementById('controls').classList.add('hidden');
+            document.getElementById('ui').classList.remove('loaded');
+            document.getElementById('shape-selector').classList.add('hidden');
+            currentImageA = null;
+            currentImageB = null;
+            document.getElementById('preview-a').innerHTML = 'Image A';
+            document.getElementById('preview-b').innerHTML = 'Image B';
+            document.getElementById('preview-a').classList.remove('loaded');
+            document.getElementById('preview-b').classList.remove('loaded');
+            if (particles) scene.remove(particles);
         }
 
-        // Animation with subtle breathing movement
+        // === ANIMATION LOOP ===
         function animate() {
             requestAnimationFrame(animate);
-
-            time += 0.001 * breathSpeed;
-
-            if (particles) {
-                if (particles.userData && particles.userData.is3D) {
-                    // 3D Mode: Update instance matrices for breathing animation
-                    const initialZs = particles.userData.initialZ;
-                    const positions = particles.userData.positions;
-
-                    if (initialZs && positions && initialZs.length > 0) {
-                        const matrix = new THREE.Matrix4();
-                        const epsilon = 0.3 * breathSpeed;
-
-                        for (let i = 0; i < initialZs.length; i++) {
-                            const breathOffset = Math.sin(time + i * 0.01) * epsilon;
-                            const newZ = initialZs[i] + breathOffset;
-
-                            matrix.setPosition(
-                                positions[i * 3],
-                                positions[i * 3 + 1],
-                                newZ
-                            );
-                            particles.setMatrixAt(i, matrix);
-                        }
-                        particles.instanceMatrix.needsUpdate = true;
-                    }
-                } else if (geometry && geometry.attributes.position) {
-                    // 2D Mode: Update position attribute
-                    const positions = geometry.attributes.position.array;
-                    const initialZs = geometry.attributes.initialZ.array;
-
-                    for (let i = 0; i < positions.length / 3; i++) {
-                        const idx = i * 3 + 2;
-                        const epsilon = 0.3 * breathSpeed;
-                        const breathOffset = Math.sin(time + i * 0.01) * epsilon;
-                        positions[idx] = initialZs[i] + breathOffset;
-                    }
-
-                    geometry.attributes.position.needsUpdate = true;
-                }
-            }
-
             renderer.render(scene, camera);
         }
 
-        // Resize
+        // === WINDOW RESIZE ===
         window.onresize = function() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         };
 
-        // Shape selector event listeners
+        // === SHAPE SELECTOR ===
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.shape-btn[data-shape]').forEach(btn => {
                 btn.addEventListener('click', function() {
                     document.querySelectorAll('.shape-btn[data-shape]').forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
                     currentShape = this.dataset.shape;
-                    if (currentImage) {
-                        generate(currentImage);
+                    if (currentImageA && currentImageB) {
+                        generate(currentImageA, currentImageB);
                     }
                 });
-            });
-
-            // 3D Mode toggle
-            document.getElementById('mode-3d-btn').addEventListener('click', function() {
-                is3DMode = !is3DMode;
-                this.classList.toggle('active');
-                if (currentImage) {
-                    generate(currentImage);
-                }
             });
 
             // Hide black checkbox
@@ -873,7 +788,7 @@
             });
         });
 
-        // Start
+        // === START ===
         window.onload = init;
     </script>
 </body>
