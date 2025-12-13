@@ -76,16 +76,20 @@
 
         <div id="controls" class="hidden">
             <label>Point Size <span class="value" id="val-size">0.020</span></label>
-            <input type="range" class="slider" id="size" min="0.01" max="0.1" step="0.001" value="0.02" oninput="document.getElementById('val-size').textContent = parseFloat(this.value).toFixed(3)">
+            <input type="range" class="slider" id="size" min="0.001" max="1.0" step="0.001" value="0.02" oninput="document.getElementById('val-size').textContent = parseFloat(this.value).toFixed(3)">
+
+            <label>Particle Density <span class="value" id="val-density">1</span></label>
+            <input type="range" class="slider" id="density" min="1" max="10" step="1" value="1" oninput="document.getElementById('val-density').textContent = this.value">
 
             <label>Depth Spread <span class="value" id="val-depth">1.0x</span></label>
-            <input type="range" class="slider" id="depth" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('val-depth').textContent = parseFloat(this.value).toFixed(1) + 'x'">
+            <input type="range" class="slider" id="depth" min="0.1" max="5" step="0.1" value="1" oninput="document.getElementById('val-depth').textContent = parseFloat(this.value).toFixed(1) + 'x'">
 
             <label>Breath Speed <span class="value" id="val-breath">0.5</span></label>
-            <input type="range" class="slider" id="breath" min="0" max="2" step="0.1" value="0.5" oninput="document.getElementById('val-breath').textContent = parseFloat(this.value).toFixed(1)">
+            <input type="range" class="slider" id="breath" min="0" max="5" step="0.1" value="0.5" oninput="document.getElementById('val-breath').textContent = parseFloat(this.value).toFixed(1)">
 
             <button onclick="applySettings()">Apply</button>
-            <button onclick="reset()">Reset</button>
+            <button onclick="resetToDefaults()">Reset to Defaults</button>
+            <button class="small" onclick="changeImage()">Change Image</button>
         </div>
 
         <p class="hint">Drag to rotate • Scroll to zoom</p>
@@ -93,11 +97,12 @@
 
     <script src="three.min.js"></script>
     <script>
-        let scene, camera, renderer, particles;
+        let scene, camera, renderer, particles, grid;
         let geometry, material;
         let breathSpeed = 0.5;
         let depthMultiplier = 1.0;
         let pointSize = 0.02;
+        let particleDensity = 1;
         let time = 0;
         let currentImage = null;
 
@@ -113,6 +118,14 @@
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
             camera.position.z = 300;
+
+            // Add grid helper (background workspace)
+            const gridSize = 1000;
+            const gridDivisions = 20;
+            grid = new THREE.GridHelper(gridSize, gridDivisions, 0x333333, 0x111111);
+            grid.material.opacity = 0.15;
+            grid.material.transparent = true;
+            scene.add(grid);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -166,9 +179,11 @@
 
                     // Reset sliders to default (cube)
                     document.getElementById('size').value = 0.02;
+                    document.getElementById('density').value = 1;
                     document.getElementById('depth').value = 1.0;
                     document.getElementById('breath').value = 0.5;
                     document.getElementById('val-size').textContent = '0.020';
+                    document.getElementById('val-density').textContent = '1';
                     document.getElementById('val-depth').textContent = '1.0x';
                     document.getElementById('val-breath').textContent = '0.5';
 
@@ -187,11 +202,13 @@
 
             // Read parameters from sliders
             pointSize = parseFloat(document.getElementById('size').value);
+            particleDensity = parseInt(document.getElementById('density').value);
             depthMultiplier = parseFloat(document.getElementById('depth').value);
             breathSpeed = parseFloat(document.getElementById('breath').value);
 
             // Crop to square (take smallest dimension)
             const TARGET_SIZE = Math.min(img.width, img.height);
+            const step = particleDensity; // Higher density = more particles (step 1 = all pixels)
             const canvas = document.createElement('canvas');
             canvas.width = TARGET_SIZE;
             canvas.height = TARGET_SIZE;
@@ -216,11 +233,11 @@
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
 
-            // TRUE CUBE: depth = width = height = 1000
+            // TRUE CUBE: depth = width = height
             const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
 
-            for (let y = 0; y < TARGET_SIZE; y++) {
-                for (let x = 0; x < TARGET_SIZE; x++) {
+            for (let y = 0; y < TARGET_SIZE; y += step) {
+                for (let x = 0; x < TARGET_SIZE; x += step) {
                     const i = (y * TARGET_SIZE + x) * 4;
                     const alpha = data[i + 3];
 
@@ -277,7 +294,25 @@
             generate(currentImage);
         }
 
-        function reset() {
+        function resetToDefaults() {
+            // Reset sliders to default values
+            document.getElementById('size').value = 0.02;
+            document.getElementById('density').value = 1;
+            document.getElementById('depth').value = 1.0;
+            document.getElementById('breath').value = 0.5;
+            document.getElementById('val-size').textContent = '0.020';
+            document.getElementById('val-density').textContent = '1';
+            document.getElementById('val-depth').textContent = '1.0x';
+            document.getElementById('val-breath').textContent = '0.5';
+
+            // Regenerate if image loaded
+            if (currentImage) {
+                generate(currentImage);
+            }
+        }
+
+        function changeImage() {
+            // Clear current and return to load screen
             currentImage = null;
             if (particles) scene.remove(particles);
             document.getElementById('preview').innerHTML = 'Empty';
