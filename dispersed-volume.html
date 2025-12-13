@@ -216,6 +216,24 @@
                 </div>
             </div>
 
+            <div class="param-row">
+                <div class="param-header">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="hide-black" style="width: 14px; height: 14px; cursor: pointer;">
+                        <span>HIDE BLACK</span>
+                    </label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="blackThreshold" data-dir="down">▼</button>
+                        <span class="value" id="val-blackThreshold" data-param="blackThreshold">30</span>
+                        <button class="arrow-btn" data-param="blackThreshold" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="blackThreshold" min="0" max="128" step="1" value="30">
+                    <div class="center-mark" style="left: 23.4%;"></div>
+                </div>
+            </div>
+
             <button onclick="applySettings()">Apply</button>
             <button onclick="resetToDefaults()">Reset to Defaults</button>
             <button onclick="resetCamera()">Reset Camera</button>
@@ -234,6 +252,8 @@
         let pointSize = 2.0;
         let particleDensity = 1;
         let brightness = 1.8;
+        let hideBlack = false;
+        let blackThreshold = 30;
         let time = 0;
         let currentImage = null;
         let currentShape = 'circle';
@@ -254,7 +274,8 @@
             density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
             depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
             breath: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
-            brightness: { min: 0.5, max: 3.0, step: 0.1, decimals: 1, suffix: '' }
+            brightness: { min: 0.5, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
         };
 
         function updateValueDisplay(param) {
@@ -645,6 +666,17 @@
 
                     // Only create particle if pixel is visible
                     if (alpha > 30) {
+                        // Check if particle should be hidden based on black threshold
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        const maxColor = Math.max(r, g, b);
+
+                        // Skip black particles if hideBlack is enabled
+                        if (hideBlack && maxColor < blackThreshold) {
+                            continue;
+                        }
+
                         // Position
                         const px = (x - halfSize) * scaleFactor;
                         const py = -(y - halfSize) * scaleFactor;
@@ -655,9 +687,9 @@
 
                         // Color directly from pixel with brightness boost
                         colors.push(
-                            Math.min(1.0, (data[i] / 255) * brightness),
-                            Math.min(1.0, (data[i + 1] / 255) * brightness),
-                            Math.min(1.0, (data[i + 2] / 255) * brightness)
+                            Math.min(1.0, (r / 255) * brightness),
+                            Math.min(1.0, (g / 255) * brightness),
+                            Math.min(1.0, (b / 255) * brightness)
                         );
                     }
                 }
@@ -775,12 +807,16 @@
             document.getElementById('depth').value = 1.0;
             document.getElementById('breath').value = 1.0;
             document.getElementById('brightness').value = 1.8;
+            document.getElementById('blackThreshold').value = 30;
+            document.getElementById('hide-black').checked = false;
+            hideBlack = false;
 
             updateValueDisplay('size');
             updateValueDisplay('density');
             updateValueDisplay('depth');
             updateValueDisplay('breath');
             updateValueDisplay('brightness');
+            updateValueDisplay('blackThreshold');
 
             // Regenerate if image loaded
             if (currentImage) {
@@ -889,6 +925,12 @@
                 if (currentImage) {
                     generate(currentImage);
                 }
+            });
+
+            // Hide black checkbox
+            document.getElementById('hide-black').addEventListener('change', function() {
+                hideBlack = this.checked;
+                scheduleRegenerate();
             });
         });
 
