@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Volumetric Particle System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               background: #000; color: #fff; overflow: hidden; }
+
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+              z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+              padding: 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+              max-width: 500px; width: 90%; transition: all 0.4s ease; }
+
+        #ui.loaded { top: auto; bottom: 20px; left: auto; right: 20px;
+                     transform: none; max-width: 360px; width: auto; padding: 24px; }
+
+        #title { position: fixed; top: 20px; left: 20px; z-index: 100;
+                 font-size: 18px; font-weight: 600; opacity: 0.7;
+                 text-transform: uppercase; letter-spacing: 2px; }
+
+        button { display: block; width: 100%; margin: 8px 0; padding: 14px;
+                 background: rgba(255,255,255,0.1); color: #fff;
+                 border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+                 cursor: pointer; font-size: 12px; font-weight: 600;
+                 transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+        button:hover { background: rgba(255,255,255,0.2); }
+        button:active { transform: scale(0.98); }
+
+        button.small { padding: 8px; font-size: 10px; opacity: 0.7; }
+        button.small:hover { opacity: 1; }
+
+        .preview { width: 100%; aspect-ratio: 1; border-radius: 6px; margin: 8px 0;
+                   display: flex; align-items: center; justify-content: center;
+                   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+                   overflow: hidden; font-size: 10px; opacity: 0.4; }
+        .preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        .preview.loaded { opacity: 1; }
+
+        input[type="file"] { display: none; }
+
+        label { font-size: 11px; font-weight: 600; margin-top: 16px; display: block;
+                text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.7; }
+
+        .hidden { display: none !important; }
+
+        #controls { margin-top: 16px; padding-top: 16px;
+                    border-top: 1px solid rgba(255,255,255,0.15); }
+
+        .slider { width: 100%; height: 4px; border-radius: 2px;
+                  background: rgba(255,255,255,0.15); outline: none;
+                  -webkit-appearance: none; margin: 10px 0; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+                                         width: 18px; height: 18px; border-radius: 50%;
+                                         background: #fff; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%;
+                                     background: #fff; cursor: pointer; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+
+        .value { font-family: 'Courier New', monospace; font-weight: 700; font-size: 11px;
+                 cursor: pointer; padding: 2px 6px; border-radius: 3px;
+                 transition: background 0.2s; }
+        .value:hover { background: rgba(255,255,255,0.1); }
+        .value-input { font-family: 'Courier New', monospace; font-weight: 700; font-size: 11px;
+                       background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+                       color: #fff; padding: 2px 6px; border-radius: 3px; width: 60px;
+                       text-align: center; }
+
+        .param-row { margin-bottom: 20px; }
+        .param-header { display: flex; justify-content: space-between; align-items: center;
+                        margin-bottom: 8px; }
+        .param-header label { margin: 0; }
+        .param-controls { display: flex; gap: 4px; align-items: center; }
+
+        .arrow-btn { width: 20px; height: 20px; padding: 0; margin: 0;
+                     background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+                     border-radius: 4px; color: #fff; font-size: 10px; cursor: pointer;
+                     display: flex; align-items: center; justify-content: center;
+                     transition: all 0.15s; line-height: 1; }
+        .arrow-btn:hover { background: rgba(255,255,255,0.2); }
+        .arrow-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
+
+        .slider-wrapper { position: relative; }
+        .slider-wrapper .slider { margin: 0; }
+        .center-mark { position: absolute; top: 50%; transform: translateY(-50%);
+                       width: 2px; height: 12px; background: rgba(255,255,255,0.4);
+                       pointer-events: none; border-radius: 1px; }
+
+        .hint { font-size: 9px; opacity: 0.3; margin-top: 10px; text-align: center;
+                font-style: italic; }
+
+        #shape-selector { position: fixed; top: 20px; right: 20px; z-index: 100;
+                          display: flex; gap: 8px; background: rgba(0,0,0,0.75);
+                          backdrop-filter: blur(10px); padding: 8px; border-radius: 8px;
+                          border: 1px solid rgba(255,255,255,0.2); }
+
+        .shape-btn { width: 40px; height: 40px; background: rgba(255,255,255,0.1);
+                     border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+                     color: #fff; font-size: 20px; cursor: pointer; transition: all 0.2s;
+                     display: flex; align-items: center; justify-content: center;
+                     padding: 0; margin: 0; }
+        .shape-btn:hover { background: rgba(255,255,255,0.2); transform: none; }
+        .shape-btn.active { background: rgba(255,255,255,0.3);
+                            border-color: rgba(255,255,255,0.5); }
+
+        #mode-3d-btn { width: auto; padding: 0 12px; font-size: 10px; margin-left: 8px;
+                       border-left: 1px solid rgba(255,255,255,0.3); }
+    </style>
+</head>
+<body>
+    <div id="title">Volumetric Particles</div>
+
+    <div id="shape-selector" class="hidden">
+        <button class="shape-btn active" data-shape="circle" title="Circle">●</button>
+        <button class="shape-btn" data-shape="square" title="Square">■</button>
+        <button class="shape-btn" data-shape="diamond" title="Diamond">◆</button>
+        <button class="shape-btn" data-shape="star" title="Star">★</button>
+        <button class="shape-btn" id="mode-3d-btn" title="Toggle 3D Mode">3D</button>
+    </div>
+    <div id="canvas"></div>
+
+    <div id="ui">
+        <div id="load-section">
+            <div class="preview" id="preview">Empty</div>
+            <button onclick="document.getElementById('file-input').click()">Load Image</button>
+            <input type="file" id="file-input" accept="image/*">
+        </div>
+
+        <div id="controls" class="hidden">
+            <div class="param-row">
+                <div class="param-header">
+                    <label>POINT SIZE</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="size" data-dir="down">▼</button>
+                        <span class="value" id="val-size" data-param="size">1.0</span>
+                        <button class="arrow-btn" data-param="size" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="size" min="0.1" max="2.0" step="0.01" value="1.0">
+                    <div class="center-mark" style="left: 47.4%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>PARTICLE DENSITY</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="density" data-dir="down">▼</button>
+                        <span class="value" id="val-density" data-param="density">7X</span>
+                        <button class="arrow-btn" data-param="density" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="density" min="1" max="15" step="1" value="7">
+                    <div class="center-mark" style="left: 42.9%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>DEPTH SPREAD</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="depth" data-dir="down">▼</button>
+                        <span class="value" id="val-depth" data-param="depth">1.0X</span>
+                        <button class="arrow-btn" data-param="depth" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
+                    <div class="center-mark" style="left: 31.0%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>BREATH SPEED</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="breath" data-dir="down">▼</button>
+                        <span class="value" id="val-breath" data-param="breath">1.0</span>
+                        <button class="arrow-btn" data-param="breath" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="breath" min="0" max="3.0" step="0.1" value="1.0">
+                    <div class="center-mark" style="left: 33.3%;"></div>
+                </div>
+            </div>
+
+            <button onclick="applySettings()">Apply</button>
+            <button onclick="resetToDefaults()">Reset to Defaults</button>
+            <button class="small" onclick="changeImage()">Change Image</button>
+        </div>
+
+        <p class="hint">Drag to rotate • Scroll to zoom</p>
+    </div>
+
+    <script src="three.min.js"></script>
+    <script>
+        let scene, camera, renderer, particles;
+        let geometry, material;
+        let breathSpeed = 0.5;
+        let depthMultiplier = 1.0;
+        let pointSize = 2.0;
+        let particleDensity = 1;
+        let time = 0;
+        let currentImage = null;
+        let currentShape = 'circle';
+        let is3DMode = false;
+        let regenerateTimeout;
+
+        // Real-time regeneration with debounce
+        function scheduleRegenerate() {
+            clearTimeout(regenerateTimeout);
+            regenerateTimeout = setTimeout(() => {
+                if (currentImage) generate(currentImage);
+            }, 150); // 150ms debounce to avoid too many regenerations
+        }
+
+        // Parameter control system
+        const paramConfigs = {
+            size: { min: 0.1, max: 2.0, step: 0.01, decimals: 2, suffix: '' },
+            density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
+            depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
+            breath: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' }
+        };
+
+        function updateValueDisplay(param) {
+            const slider = document.getElementById(param);
+            const valueSpan = document.getElementById('val-' + param);
+            const config = paramConfigs[param];
+            const value = parseFloat(slider.value);
+            const formatted = value.toFixed(config.decimals);
+            valueSpan.textContent = formatted + config.suffix;
+        }
+
+        function setupSliderListeners() {
+            Object.keys(paramConfigs).forEach(param => {
+                const slider = document.getElementById(param);
+                slider.addEventListener('input', function() {
+                    updateValueDisplay(param);
+                    scheduleRegenerate();
+                });
+                updateValueDisplay(param);
+            });
+        }
+
+        // Double-click to edit values
+        function setupValueEditing() {
+            document.querySelectorAll('.value[data-param]').forEach(valueSpan => {
+                valueSpan.addEventListener('dblclick', function() {
+                    const param = this.dataset.param;
+                    const config = paramConfigs[param];
+                    const slider = document.getElementById(param);
+                    const currentValue = parseFloat(slider.value);
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.className = 'value-input';
+                    input.min = config.min;
+                    input.max = config.max;
+                    input.step = config.step;
+                    input.value = currentValue.toFixed(config.decimals);
+
+                    this.replaceWith(input);
+                    input.focus();
+                    input.select();
+
+                    function finishEdit() {
+                        let newValue = parseFloat(input.value);
+                        newValue = Math.max(config.min, Math.min(config.max, newValue));
+                        slider.value = newValue;
+                        updateValueDisplay(param);
+                        scheduleRegenerate();
+                        input.replaceWith(valueSpan);
+                    }
+
+                    input.addEventListener('blur', finishEdit);
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') finishEdit();
+                        if (e.key === 'Escape') {
+                            input.replaceWith(valueSpan);
+                        }
+                    });
+                });
+            });
+        }
+
+        // Arrow buttons with acceleration
+        let arrowInterval;
+        let arrowAcceleration = 1;
+        let arrowStartTime;
+
+        function setupArrowButtons() {
+            document.querySelectorAll('.arrow-btn').forEach(btn => {
+                const param = btn.dataset.param;
+                const direction = btn.dataset.dir === 'up' ? 1 : -1;
+                const config = paramConfigs[param];
+
+                function incrementValue() {
+                    const slider = document.getElementById(param);
+                    let value = parseFloat(slider.value);
+
+                    // Calculate acceleration based on hold time
+                    const holdTime = Date.now() - arrowStartTime;
+                    let speed = 1;
+                    if (holdTime > 2000) speed = 10;
+                    else if (holdTime > 1000) speed = 5;
+                    else if (holdTime > 500) speed = 2;
+
+                    value += direction * config.step * speed;
+                    value = Math.max(config.min, Math.min(config.max, value));
+
+                    slider.value = value;
+                    updateValueDisplay(param);
+                    scheduleRegenerate();
+                }
+
+                btn.addEventListener('mousedown', function() {
+                    arrowStartTime = Date.now();
+                    incrementValue();
+                    arrowInterval = setInterval(incrementValue, 100);
+                });
+
+                btn.addEventListener('mouseup', stopArrow);
+                btn.addEventListener('mouseleave', stopArrow);
+
+                function stopArrow() {
+                    clearInterval(arrowInterval);
+                }
+            });
+        }
+
+        // Shape texture generators
+        function createCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(32, 32, 32, 0, Math.PI * 2);
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSquareTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, 64, 64);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createDiamondTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(32, 0);
+            ctx.lineTo(64, 32);
+            ctx.lineTo(32, 64);
+            ctx.lineTo(0, 32);
+            ctx.closePath();
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createStarTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+                const x = 32 + Math.cos(angle) * 30;
+                const y = 32 + Math.sin(angle) * 30;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function getShapeTexture(shape) {
+            switch(shape) {
+                case 'circle': return createCircleTexture();
+                case 'square': return createSquareTexture();
+                case 'diamond': return createDiamondTexture();
+                case 'star': return createStarTexture();
+                default: return createCircleTexture();
+            }
+        }
+
+        // Init Three.js
+        function init() {
+            if (typeof THREE === 'undefined') {
+                alert('THREE.js failed to load.');
+                return;
+            }
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+            camera.position.z = 300;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas').appendChild(renderer.domElement);
+
+            // Mouse control
+            let isDrag = false;
+            let prevMouse = { x: 0, y: 0 };
+
+            renderer.domElement.onmousedown = function(e) {
+                isDrag = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            };
+
+            renderer.domElement.onmousemove = function(e) {
+                if (!isDrag || !particles) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                particles.rotation.y += dx * 0.005;
+                particles.rotation.x += dy * 0.005;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            };
+
+            document.onmouseup = function() {
+                isDrag = false;
+            };
+
+            // Zoom with mouse wheel
+            renderer.domElement.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const zoomSpeed = 0.1;
+                const delta = e.deltaY > 0 ? 1 : -1;
+                camera.position.z += delta * zoomSpeed * camera.position.z;
+                camera.position.z = Math.max(50, Math.min(1000, camera.position.z));
+            });
+
+            // Setup parameter controls
+            setupSliderListeners();
+            setupValueEditing();
+            setupArrowButtons();
+
+            animate();
+        }
+
+        // Load image function
+        function loadImageFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const img = new Image();
+                img.onload = function() {
+                    const isFirstLoad = (currentImage === null);
+                    currentImage = img;
+                    document.getElementById('preview').innerHTML = '<img src="' + ev.target.result + '">';
+
+                    // Reset sliders to default ONLY on first load
+                    if (isFirstLoad) {
+                        document.getElementById('size').value = 1.0;
+                        document.getElementById('density').value = 7;
+                        document.getElementById('depth').value = 1.0;
+                        document.getElementById('breath').value = 1.0;
+
+                        updateValueDisplay('size');
+                        updateValueDisplay('density');
+                        updateValueDisplay('depth');
+                        updateValueDisplay('breath');
+
+                        document.getElementById('load-section').classList.add('hidden');
+                        document.getElementById('controls').classList.remove('hidden');
+                        document.getElementById('ui').classList.add('loaded');
+                        document.getElementById('shape-selector').classList.remove('hidden');
+                    }
+
+                    generate(img);
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // File input change
+        document.getElementById('file-input').onchange = function(e) {
+            loadImageFile(e.target.files[0]);
+        };
+
+        // Drag & drop on preview area
+        const preview = document.getElementById('preview');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.5)';
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.1)';
+            });
+        });
+
+        preview.addEventListener('drop', function(e) {
+            const file = e.dataTransfer.files[0];
+            loadImageFile(file);
+        });
+
+        // Global drag & drop on entire page
+        ['dragenter', 'dragover'].forEach(eventName => {
+            document.body.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.body.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImageFile(file);
+            }
+        });
+
+        function generate(img) {
+            if (typeof THREE === 'undefined') {
+                alert('THREE.js not loaded.');
+                return;
+            }
+
+            // Read parameters from sliders
+            pointSize = parseFloat(document.getElementById('size').value);
+            particleDensity = parseInt(document.getElementById('density').value);
+            depthMultiplier = parseFloat(document.getElementById('depth').value);
+            breathSpeed = parseFloat(document.getElementById('breath').value);
+
+            // Crop to square (take smallest dimension)
+            const TARGET_SIZE = Math.min(img.width, img.height);
+            const step = Math.max(1, Math.floor(10 / particleDensity)); // Higher density = smaller step = more particles
+            const canvas = document.createElement('canvas');
+            canvas.width = TARGET_SIZE;
+            canvas.height = TARGET_SIZE;
+            const ctx = canvas.getContext('2d');
+
+            // Crop to center square
+            const sourceSize = Math.min(img.width, img.height);
+            const offsetX = (img.width - sourceSize) / 2;
+            const offsetY = (img.height - sourceSize) / 2;
+
+            // Draw cropped and resized image
+            ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+
+            const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            const data = imageData.data;
+
+            // Create particle for each pixel (1 pixel = 1 particle)
+            const positions = [];
+            const colors = [];
+            const initialZ = [];
+
+            const scaleFactor = 0.5;
+            const halfSize = TARGET_SIZE / 2;
+
+            // TRUE CUBE: depth = width = height
+            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
+
+            for (let y = 0; y < TARGET_SIZE; y += step) {
+                for (let x = 0; x < TARGET_SIZE; x += step) {
+                    const i = (y * TARGET_SIZE + x) * 4;
+                    const alpha = data[i + 3];
+
+                    // Only create particle if pixel is visible
+                    if (alpha > 30) {
+                        // Position
+                        const px = (x - halfSize) * scaleFactor;
+                        const py = -(y - halfSize) * scaleFactor;
+                        const pz = (Math.random() - 0.5) * depthSpread;
+
+                        positions.push(px, py, pz);
+                        initialZ.push(pz);
+
+                        // Color directly from pixel
+                        colors.push(
+                            data[i] / 255,
+                            data[i + 1] / 255,
+                            data[i + 2] / 255
+                        );
+                    }
+                }
+            }
+
+            if (particles) {
+                scene.remove(particles);
+                if (particles.geometry) particles.geometry.dispose();
+                if (particles.material) particles.material.dispose();
+            }
+
+            if (is3DMode) {
+                // 3D Mode: Use InstancedMesh with real 3D geometries
+                const count = positions.length / 3;
+                let baseGeometry;
+                const size = pointSize * 3; // Adjusted scale for better visibility
+
+                switch(currentShape) {
+                    case 'square':
+                        baseGeometry = new THREE.BoxGeometry(size, size, size);
+                        break;
+                    case 'circle':
+                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
+                        break;
+                    case 'diamond':
+                        baseGeometry = new THREE.OctahedronGeometry(size * 0.5);
+                        break;
+                    case 'star':
+                        baseGeometry = new THREE.TetrahedronGeometry(size * 0.6);
+                        break;
+                    default:
+                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
+                }
+
+                // Use MeshBasicMaterial without vertexColors - we'll use instance colors
+                material = new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    flatShading: true
+                });
+
+                particles = new THREE.InstancedMesh(baseGeometry, material, count);
+                particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+                // Create instance color attribute
+                const instanceColors = new Float32Array(count * 3);
+                for (let i = 0; i < count; i++) {
+                    instanceColors[i * 3] = colors[i * 3];
+                    instanceColors[i * 3 + 1] = colors[i * 3 + 1];
+                    instanceColors[i * 3 + 2] = colors[i * 3 + 2];
+                }
+                particles.instanceColor = new THREE.InstancedBufferAttribute(instanceColors, 3);
+
+                const matrix = new THREE.Matrix4();
+                const color = new THREE.Color();
+
+                for (let i = 0; i < count; i++) {
+                    matrix.setPosition(
+                        positions[i * 3],
+                        positions[i * 3 + 1],
+                        positions[i * 3 + 2]
+                    );
+                    particles.setMatrixAt(i, matrix);
+                    color.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]);
+                    particles.setColorAt(i, color);
+                }
+
+                particles.instanceMatrix.needsUpdate = true;
+
+                // Store data for animation
+                particles.userData.initialZ = initialZ;
+                particles.userData.positions = positions;
+                particles.userData.is3D = true;
+
+            } else {
+                // 2D Mode: Use Points with textures
+                geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                geometry.setAttribute('initialZ', new THREE.Float32BufferAttribute(initialZ, 1));
+
+                const shapeTexture = getShapeTexture(currentShape);
+                material = new THREE.PointsMaterial({
+                    size: pointSize,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 1.0,
+                    sizeAttenuation: true,
+                    map: shapeTexture
+                });
+
+                particles = new THREE.Points(geometry, material);
+            }
+
+            scene.add(particles);
+        }
+
+        function applySettings() {
+            if (!currentImage) {
+                alert('No image loaded');
+                return;
+            }
+
+            // Regenerate with new settings
+            generate(currentImage);
+        }
+
+        function resetToDefaults() {
+            // Reset sliders to default (center) values
+            document.getElementById('size').value = 1.0;
+            document.getElementById('density').value = 7;
+            document.getElementById('depth').value = 1.0;
+            document.getElementById('breath').value = 1.0;
+
+            updateValueDisplay('size');
+            updateValueDisplay('density');
+            updateValueDisplay('depth');
+            updateValueDisplay('breath');
+
+            // Regenerate if image loaded
+            if (currentImage) {
+                generate(currentImage);
+            }
+        }
+
+        function changeImage() {
+            // Open file picker - keep current parameters
+            document.getElementById('file-input').click();
+        }
+
+        // Animation with subtle breathing movement
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += 0.001 * breathSpeed;
+
+            if (particles) {
+                if (particles.userData && particles.userData.is3D) {
+                    // 3D Mode: Update instance matrices for breathing animation
+                    const initialZs = particles.userData.initialZ;
+                    const positions = particles.userData.positions;
+
+                    if (initialZs && positions && initialZs.length > 0) {
+                        const matrix = new THREE.Matrix4();
+                        const epsilon = 0.3 * breathSpeed;
+
+                        for (let i = 0; i < initialZs.length; i++) {
+                            const breathOffset = Math.sin(time + i * 0.01) * epsilon;
+                            const newZ = initialZs[i] + breathOffset;
+
+                            matrix.setPosition(
+                                positions[i * 3],
+                                positions[i * 3 + 1],
+                                newZ
+                            );
+                            particles.setMatrixAt(i, matrix);
+                        }
+                        particles.instanceMatrix.needsUpdate = true;
+                    }
+                } else if (geometry && geometry.attributes.position) {
+                    // 2D Mode: Update position attribute
+                    const positions = geometry.attributes.position.array;
+                    const initialZs = geometry.attributes.initialZ.array;
+
+                    for (let i = 0; i < positions.length / 3; i++) {
+                        const idx = i * 3 + 2;
+                        const epsilon = 0.3 * breathSpeed;
+                        const breathOffset = Math.sin(time + i * 0.01) * epsilon;
+                        positions[idx] = initialZs[i] + breathOffset;
+                    }
+
+                    geometry.attributes.position.needsUpdate = true;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Resize
+        window.onresize = function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        // Shape selector event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.shape-btn[data-shape]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.shape-btn[data-shape]').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentShape = this.dataset.shape;
+                    if (currentImage) {
+                        generate(currentImage);
+                    }
+                });
+            });
+
+            // 3D Mode toggle
+            document.getElementById('mode-3d-btn').addEventListener('click', function() {
+                is3DMode = !is3DMode;
+                this.classList.toggle('active');
+                if (currentImage) {
+                    generate(currentImage);
+                }
+            });
+        });
+
+        // Start
+        window.onload = init;
+    </script>
+</body>
+</html>
