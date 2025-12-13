@@ -619,33 +619,52 @@
                 }
             }
 
-            if (particles) scene.remove(particles);
+            if (particles) {
+                scene.remove(particles);
+                if (particles.geometry) particles.geometry.dispose();
+                if (particles.material) particles.material.dispose();
+            }
 
             if (is3DMode) {
                 // 3D Mode: Use InstancedMesh with real 3D geometries
                 const count = positions.length / 3;
                 let baseGeometry;
-                const size = pointSize * 5; // Scale up for visibility
+                const size = pointSize * 3; // Adjusted scale for better visibility
 
                 switch(currentShape) {
                     case 'square':
                         baseGeometry = new THREE.BoxGeometry(size, size, size);
                         break;
                     case 'circle':
-                        baseGeometry = new THREE.SphereGeometry(size / 2, 8, 8);
+                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
                         break;
                     case 'diamond':
-                        baseGeometry = new THREE.OctahedronGeometry(size / 2);
+                        baseGeometry = new THREE.OctahedronGeometry(size * 0.5);
                         break;
                     case 'star':
-                        baseGeometry = new THREE.TetrahedronGeometry(size / 2);
+                        baseGeometry = new THREE.TetrahedronGeometry(size * 0.6);
                         break;
                     default:
-                        baseGeometry = new THREE.SphereGeometry(size / 2, 8, 8);
+                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
                 }
 
-                material = new THREE.MeshBasicMaterial({ vertexColors: true });
+                // Use MeshBasicMaterial without vertexColors - we'll use instance colors
+                material = new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    flatShading: true
+                });
+
                 particles = new THREE.InstancedMesh(baseGeometry, material, count);
+                particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+                // Create instance color attribute
+                const instanceColors = new Float32Array(count * 3);
+                for (let i = 0; i < count; i++) {
+                    instanceColors[i * 3] = colors[i * 3];
+                    instanceColors[i * 3 + 1] = colors[i * 3 + 1];
+                    instanceColors[i * 3 + 2] = colors[i * 3 + 2];
+                }
+                particles.instanceColor = new THREE.InstancedBufferAttribute(instanceColors, 3);
 
                 const matrix = new THREE.Matrix4();
                 const color = new THREE.Color();
@@ -662,11 +681,11 @@
                 }
 
                 particles.instanceMatrix.needsUpdate = true;
-                particles.instanceColor.needsUpdate = true;
 
-                // Store initialZ for animation
+                // Store data for animation
                 particles.userData.initialZ = initialZ;
                 particles.userData.positions = positions;
+                particles.userData.is3D = true;
 
             } else {
                 // 2D Mode: Use Points with textures
@@ -731,15 +750,16 @@
             time += 0.001 * breathSpeed;
 
             if (particles) {
-                if (is3DMode && particles.isInstancedMesh) {
-                    // 3D Mode: Update instance matrices
-                    const matrix = new THREE.Matrix4();
+                if (particles.userData && particles.userData.is3D) {
+                    // 3D Mode: Update instance matrices for breathing animation
                     const initialZs = particles.userData.initialZ;
                     const positions = particles.userData.positions;
 
-                    if (initialZs && positions) {
+                    if (initialZs && positions && initialZs.length > 0) {
+                        const matrix = new THREE.Matrix4();
+                        const epsilon = 0.3 * breathSpeed;
+
                         for (let i = 0; i < initialZs.length; i++) {
-                            const epsilon = 0.3 * breathSpeed;
                             const breathOffset = Math.sin(time + i * 0.01) * epsilon;
                             const newZ = initialZs[i] + breathOffset;
 
@@ -752,7 +772,7 @@
                         }
                         particles.instanceMatrix.needsUpdate = true;
                     }
-                } else if (geometry) {
+                } else if (geometry && geometry.attributes.position) {
                     // 2D Mode: Update position attribute
                     const positions = geometry.attributes.position.array;
                     const initialZs = geometry.attributes.initialZ.array;
