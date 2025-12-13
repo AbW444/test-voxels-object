@@ -6,7 +6,11 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-               background: #000; color: #fff; overflow: hidden; }
+               background: #000; color: #fff; overflow: hidden;
+               background-image:
+                   linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+                   linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+               background-size: 30px 30px; }
 
         #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 
@@ -223,6 +227,23 @@
             loadImageFile(file);
         });
 
+        // Global drag & drop on entire page
+        ['dragenter', 'dragover'].forEach(eventName => {
+            document.body.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.body.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImageFile(file);
+            }
+        });
+
         function generate(img) {
             if (typeof THREE === 'undefined') {
                 alert('THREE.js not loaded.');
@@ -230,7 +251,8 @@
             }
 
             // Read parameters from sliders
-            pointSize = parseFloat(document.getElementById('size').value);
+            const sizeSlider = parseFloat(document.getElementById('size').value);
+            pointSize = sizeSlider * 0.06; // Map slider 0.1-50 to effective 0.006-3.0
             particleDensity = parseInt(document.getElementById('density').value);
             depthMultiplier = parseFloat(document.getElementById('depth').value);
             breathSpeed = parseFloat(document.getElementById('breath').value);
