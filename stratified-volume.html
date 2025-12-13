@@ -527,15 +527,24 @@
 
         // === CORE: STRATIFIED VOLUME GENERATION ===
         /**
-         * PROTOTYPE 3.0 LOGIC:
+         * PROTOTYPE 3.0 LOGIC (CORRECTED):
          * - Creates a SINGLE particle cloud
-         * - Each particle stores TWO color states (colorA, colorB)
-         * - Z position becomes a semantic axis for stratification
-         * - Shader computes final color via mix(colorA, colorB, f(z))
+         * - Each particle stores TWO color states (colorA, colorB) + semanticDepth
+         * - SEPARATION: position.z (pz) = volumetric depth (random, esthétique)
+         *                semanticDepth = stratification axis (continuous, semantic)
+         * - Shader computes final color via mix(colorA, colorB, f(semanticDepth))
          * - No surfaces, no cubes, no discrete layers - continuous volumetric transition
+         *
+         * WHY semanticDepth:
+         * - Problem: pz is random → using worldZ for stratification creates visual noise
+         * - Solution: semanticDepth is spatially continuous (based on Y axis or luminance)
+         *             → readable gradient/zones instead of "muddy" random mix
          */
         function generate(imgA, imgB) {
             const TARGET_SIZE = 1000;
+
+            // Semantic mode selection
+            const SEMANTIC_MODE = 'AXIS'; // 'AXIS' or 'LUMINANCE'
 
             // Read parameters
             pointSize = parseFloat(document.getElementById('size').value);
@@ -571,10 +580,14 @@
             const dataB = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
 
             // === PARTICLE DATA STRUCTURE ===
-            // Each particle has: position(x,y,z), colorA(r,g,b), colorB(r,g,b)
+            // Each particle has:
+            // - position(x,y,z) where z is RANDOM (volumetric depth)
+            // - colorA, colorB (from images)
+            // - semanticDepth (CONTINUOUS spatial value for stratification)
             const positions = [];
-            const colorsA = [];  // Color from image A
-            const colorsB = [];  // Color from image B
+            const colorsA = [];
+            const colorsB = [];
+            const semanticDepths = []; // NEW: dedicated stratification axis
 
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
@@ -599,12 +612,29 @@
                             continue;
                         }
 
-                        // Position: Z is distributed randomly for volumetric effect
+                        // === VOLUMETRIC DEPTH (aesthetic, random) ===
                         const px = (x - halfSize) * scaleFactor;
                         const py = -(y - halfSize) * scaleFactor;
-                        const pz = (Math.random() - 0.5) * depthSpread;
+                        const pz = (Math.random() - 0.5) * depthSpread; // RANDOM for volume
 
                         positions.push(px, py, pz);
+
+                        // === SEMANTIC DEPTH (stratification, continuous) ===
+                        let semanticDepth;
+
+                        if (SEMANTIC_MODE === 'AXIS') {
+                            // Mode A: Vertical axis stratification (simple, readable)
+                            // Top of image → -1, Bottom → +1
+                            semanticDepth = (y / (TARGET_SIZE - 1)) * 2 - 1;
+
+                        } else if (SEMANTIC_MODE === 'LUMINANCE') {
+                            // Mode B: Luminance-based stratification (organic)
+                            // Calculate luminance of image A
+                            const lumaA = (rA * 0.2126 + gA * 0.7152 + bA * 0.0722) / 255;
+                            semanticDepth = lumaA * 2 - 1; // Normalize to [-1, 1]
+                        }
+
+                        semanticDepths.push(semanticDepth);
 
                         // Store both color states
                         colorsA.push(rA / 255, gA / 255, bA / 255);
@@ -628,23 +658,22 @@
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
             geometry.setAttribute('colorA', new THREE.Float32BufferAttribute(colorsA, 3));
             geometry.setAttribute('colorB', new THREE.Float32BufferAttribute(colorsB, 3));
+            geometry.setAttribute('semanticDepth', new THREE.Float32BufferAttribute(semanticDepths, 1));
 
             // === CUSTOM SHADER FOR STRATIFICATION ===
-            // Vertex shader: pass through colorA, colorB, and world Z position
+            // Vertex shader: pass through colorA, colorB, and SEMANTIC depth
             const vertexShader = `
                 attribute vec3 colorA;
                 attribute vec3 colorB;
+                attribute float semanticDepth;
                 varying vec3 vColorA;
                 varying vec3 vColorB;
-                varying float vWorldZ;
+                varying float vSemantic;
 
                 void main() {
                     vColorA = colorA;
                     vColorB = colorB;
-
-                    // Calculate world position for Z-depth stratification
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                    vWorldZ = worldPos.z;
+                    vSemantic = semanticDepth; // Pass semantic depth, NOT worldZ
 
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
                     gl_PointSize = ${pointSize.toFixed(2)};
@@ -652,37 +681,34 @@
                 }
             `;
 
-            // Fragment shader: compute final color via Z-dependent mixing
+            // Fragment shader: stratification via semanticDepth (continuous)
             const fragmentShader = `
                 uniform sampler2D pointTexture;
                 uniform float transitionWidth;
                 uniform float stratCenter;
                 varying vec3 vColorA;
                 varying vec3 vColorB;
-                varying float vWorldZ;
+                varying float vSemantic;
 
                 void main() {
                     // Apply shape texture
                     vec4 texColor = texture2D(pointTexture, gl_PointCoord);
                     if (texColor.a < 0.5) discard;
 
-                    // === STRATIFICATION LOGIC ===
-                    // Compute mix factor based on normalized Z position
-                    // Z near stratCenter → colorA dominant
-                    // Z far from stratCenter → colorB dominant
-                    // Transition is continuous, no hard edges
+                    // === STRATIFICATION LOGIC (CORRECTED) ===
+                    // vSemantic is in [-1, 1] range (spatially continuous)
+                    // stratCenter is in [-1, 1] range
+                    // transitionWidth controls blend zone width
 
-                    float normalizedZ = vWorldZ / 250.0; // Normalize to approx range
-                    float distance = normalizedZ - stratCenter;
-
-                    // Smooth transition using smoothstep for continuous blend
+                    // Compute mix factor: 0 = colorA, 1 = colorB
+                    // smoothstep creates continuous transition
                     float mixFactor = smoothstep(
-                        -transitionWidth,
-                        transitionWidth,
-                        distance
+                        stratCenter - transitionWidth,
+                        stratCenter + transitionWidth,
+                        vSemantic
                     );
 
-                    // Final color: continuous mix of both image states
+                    // Final color: continuous spatial mix
                     vec3 finalColor = mix(vColorA, vColorB, mixFactor);
 
                     gl_FragColor = vec4(finalColor, 1.0);
