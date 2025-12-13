@@ -65,10 +65,31 @@
 
         .hint { font-size: 9px; opacity: 0.3; margin-top: 10px; text-align: center;
                 font-style: italic; }
+
+        #shape-selector { position: fixed; top: 20px; right: 20px; z-index: 100;
+                          display: flex; gap: 8px; background: rgba(0,0,0,0.75);
+                          backdrop-filter: blur(10px); padding: 8px; border-radius: 8px;
+                          border: 1px solid rgba(255,255,255,0.2); }
+
+        .shape-btn { width: 40px; height: 40px; background: rgba(255,255,255,0.1);
+                     border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+                     color: #fff; font-size: 20px; cursor: pointer; transition: all 0.2s;
+                     display: flex; align-items: center; justify-content: center;
+                     padding: 0; margin: 0; }
+        .shape-btn:hover { background: rgba(255,255,255,0.2); transform: none; }
+        .shape-btn.active { background: rgba(255,255,255,0.3);
+                            border-color: rgba(255,255,255,0.5); }
     </style>
 </head>
 <body>
     <div id="title">Volumetric Particles</div>
+
+    <div id="shape-selector">
+        <button class="shape-btn active" data-shape="circle" title="Circle">●</button>
+        <button class="shape-btn" data-shape="square" title="Square">■</button>
+        <button class="shape-btn" data-shape="diamond" title="Diamond">◆</button>
+        <button class="shape-btn" data-shape="star" title="Star">★</button>
+    </div>
     <div id="canvas"></div>
 
     <div id="ui">
@@ -109,6 +130,86 @@
         let particleDensity = 1;
         let time = 0;
         let currentImage = null;
+        let currentShape = 'circle';
+
+        // Shape texture generators
+        function createCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.5, 'rgba(255,255,255,0.5)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSquareTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, 64, 64);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createDiamondTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(32, 0);
+            ctx.lineTo(64, 32);
+            ctx.lineTo(32, 64);
+            ctx.lineTo(0, 32);
+            ctx.closePath();
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createStarTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+                const x = 32 + Math.cos(angle) * 30;
+                const y = 32 + Math.sin(angle) * 30;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function getShapeTexture(shape) {
+            switch(shape) {
+                case 'circle': return createCircleTexture();
+                case 'square': return createSquareTexture();
+                case 'diamond': return createDiamondTexture();
+                case 'star': return createStarTexture();
+                default: return createCircleTexture();
+            }
+        }
 
         // Init Three.js
         function init() {
@@ -318,13 +419,15 @@
             geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
             geometry.setAttribute('initialZ', new THREE.Float32BufferAttribute(initialZ, 1));
 
-            // PointsMaterial with vertexColors
+            // PointsMaterial with vertexColors and shape texture
+            const shapeTexture = getShapeTexture(currentShape);
             material = new THREE.PointsMaterial({
                 size: pointSize,
                 vertexColors: true,
                 transparent: true,
                 opacity: 1.0,
-                sizeAttenuation: true
+                sizeAttenuation: true,
+                map: shapeTexture
             });
 
             if (particles) scene.remove(particles);
@@ -395,6 +498,20 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         };
+
+        // Shape selector event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.shape-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentShape = this.dataset.shape;
+                    if (currentImage) {
+                        generate(currentImage);
+                    }
+                });
+            });
+        });
 
         // Start
         window.onload = init;
