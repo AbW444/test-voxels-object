@@ -193,13 +193,13 @@
                     <label>TRANSITION WIDTH</label>
                     <div class="param-controls">
                         <button class="arrow-btn" data-param="transition" data-dir="down">▼</button>
-                        <span class="value" id="val-transition" data-param="transition">0.5</span>
+                        <span class="value" id="val-transition" data-param="transition">0.12</span>
                         <button class="arrow-btn" data-param="transition" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="transition" min="0.1" max="1.0" step="0.05" value="0.5">
-                    <div class="center-mark" style="left: 44.4%;"></div>
+                    <input type="range" class="slider" id="transition" min="0.02" max="0.4" step="0.02" value="0.12">
+                    <div class="center-mark" style="left: 26.3%;"></div>
                 </div>
             </div>
 
@@ -254,7 +254,7 @@
         let particleDensity = 1;
         let hideBlack = false;
         let blackThreshold = 30;
-        let transitionWidth = 0.5;
+        let transitionWidth = 0.12; // V3.1: Tighter default for sharper stratification
         let stratificationCenter = 0.0;
         let currentImageA = null;
         let currentImageB = null;
@@ -266,7 +266,7 @@
             size: { min: 0.1, max: 2.0, step: 0.01, decimals: 2, suffix: '' },
             density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
             depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
-            transition: { min: 0.1, max: 1.0, step: 0.05, decimals: 2, suffix: '' },
+            transition: { min: 0.02, max: 0.4, step: 0.02, decimals: 2, suffix: '' }, // V3.1: Tighter range
             stratCenter: { min: -1.0, max: 1.0, step: 0.05, decimals: 2, suffix: '' },
             blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
         };
@@ -527,24 +527,23 @@
 
         // === CORE: STRATIFIED VOLUME GENERATION ===
         /**
-         * PROTOTYPE 3.0 LOGIC (CORRECTED):
-         * - Creates a SINGLE particle cloud
-         * - Each particle stores TWO color states (colorA, colorB) + semanticDepth
-         * - SEPARATION: position.z (pz) = volumetric depth (random, esthétique)
-         *                semanticDepth = stratification axis (continuous, semantic)
-         * - Shader computes final color via mix(colorA, colorB, f(semanticDepth))
-         * - No surfaces, no cubes, no discrete layers - continuous volumetric transition
-         *
-         * WHY semanticDepth:
-         * - Problem: pz is random → using worldZ for stratification creates visual noise
-         * - Solution: semanticDepth is spatially continuous (based on Y axis or luminance)
-         *             → readable gradient/zones instead of "muddy" random mix
+         * PROTOTYPE 3.1 LOGIC (V3.1 - INFORMATIONAL STRATIFICATION):
+         * - Single particle cloud with TWO color states + semanticDepth
+         * - SEPARATION: position.z (pz) = volumetric depth (aesthetic diffusion)
+         *                semanticDepth = stratification field (content-driven)
+         * - V3.1 CHANGES:
+         *   1. LUMA_DIFF mode: semanticDepth based on image structural difference
+         *   2. Tighter transition (lower default transitionWidth)
+         *   3. Weak correlation pz/semanticDepth for volumetric anchoring
+         * - Shader: mix(colorA, colorB, smoothstep(semanticDepth))
          */
         function generate(imgA, imgB) {
             const TARGET_SIZE = 1000;
 
-            // Semantic mode selection
-            const SEMANTIC_MODE = 'AXIS'; // 'AXIS' or 'LUMINANCE'
+            // V3.1: Semantic mode (informational stratification)
+            const SEMANTIC_MODE = 'LUMA_DIFF'; // 'LUMA_DIFF', 'LUMA_A', or 'AXIS'
+            const LUMA_GAIN = 3.0; // Amplify luma differences for clearer zones
+            const SEMANTIC_Z_BIAS = 20; // Weak correlation: semantic → depth anchoring
 
             // Read parameters
             pointSize = parseFloat(document.getElementById('size').value);
@@ -612,29 +611,39 @@
                             continue;
                         }
 
-                        // === VOLUMETRIC DEPTH (aesthetic, random) ===
-                        const px = (x - halfSize) * scaleFactor;
-                        const py = -(y - halfSize) * scaleFactor;
-                        const pz = (Math.random() - 0.5) * depthSpread; // RANDOM for volume
-
-                        positions.push(px, py, pz);
-
-                        // === SEMANTIC DEPTH (stratification, continuous) ===
+                        // === SEMANTIC DEPTH (stratification, content-driven) ===
+                        // V3.1: Calculate BEFORE position to enable correlation
                         let semanticDepth;
 
-                        if (SEMANTIC_MODE === 'AXIS') {
-                            // Mode A: Vertical axis stratification (simple, readable)
-                            // Top of image → -1, Bottom → +1
-                            semanticDepth = (y / (TARGET_SIZE - 1)) * 2 - 1;
-
-                        } else if (SEMANTIC_MODE === 'LUMINANCE') {
-                            // Mode B: Luminance-based stratification (organic)
-                            // Calculate luminance of image A
+                        if (SEMANTIC_MODE === 'LUMA_DIFF') {
+                            // V3.1 PRIMARY MODE: Structural difference between images
+                            // Encodes which image "dominates" this region structurally
                             const lumaA = (rA * 0.2126 + gA * 0.7152 + bA * 0.0722) / 255;
-                            semanticDepth = lumaA * 2 - 1; // Normalize to [-1, 1]
+                            const lumaB = (rB * 0.2126 + gB * 0.7152 + bB * 0.0722) / 255;
+                            const lumaDiff = (lumaA - lumaB) * LUMA_GAIN;
+                            semanticDepth = Math.max(-1, Math.min(1, lumaDiff)); // Clamp [-1,1]
+
+                        } else if (SEMANTIC_MODE === 'LUMA_A') {
+                            // Alternative: luminance of image A only
+                            const lumaA = (rA * 0.2126 + gA * 0.7152 + bA * 0.0722) / 255;
+                            semanticDepth = lumaA * 2 - 1;
+
+                        } else if (SEMANTIC_MODE === 'AXIS') {
+                            // Fallback: geometric vertical axis
+                            semanticDepth = (y / (TARGET_SIZE - 1)) * 2 - 1;
                         }
 
                         semanticDepths.push(semanticDepth);
+
+                        // === VOLUMETRIC DEPTH (aesthetic + weak semantic anchoring) ===
+                        // V3.1: Introduce weak correlation between semantic field and depth
+                        // Creates volumetric "zones" without creating planar layers
+                        const px = (x - halfSize) * scaleFactor;
+                        const py = -(y - halfSize) * scaleFactor;
+                        const baseRandomZ = (Math.random() - 0.5) * depthSpread;
+                        const pz = baseRandomZ + semanticDepth * SEMANTIC_Z_BIAS;
+
+                        positions.push(px, py, pz);
 
                         // Store both color states
                         colorsA.push(rA / 255, gA / 255, bA / 255);
@@ -746,7 +755,7 @@
             document.getElementById('size').value = 1.0;
             document.getElementById('density').value = 7;
             document.getElementById('depth').value = 1.0;
-            document.getElementById('transition').value = 0.5;
+            document.getElementById('transition').value = 0.12; // V3.1: Tighter default
             document.getElementById('stratCenter').value = 0.0;
             document.getElementById('blackThreshold').value = 30;
             document.getElementById('hide-black').checked = false;
@@ -759,7 +768,7 @@
             updateValueDisplay('stratCenter');
             updateValueDisplay('blackThreshold');
 
-            transitionWidth = 0.5;
+            transitionWidth = 0.12; // V3.1: Tighter default
             stratificationCenter = 0.0;
 
             if (currentImageA && currentImageB) {
