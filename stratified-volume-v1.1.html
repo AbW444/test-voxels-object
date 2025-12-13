@@ -2,8 +2,8 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Stratified Volume - Prototype 1.3</title>
-    <!-- Version 1.3 -->
+    <title>Stratified Volume - Prototype 1.1</title>
+    <!-- Version 1.1 -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -73,6 +73,10 @@
                  cursor: pointer; padding: 2px 6px; border-radius: 3px;
                  transition: background 0.2s; }
         .value:hover { background: rgba(255,255,255,0.1); }
+        .value-input { font-family: 'Courier New', monospace; font-weight: 700; font-size: 11px;
+                       background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+                       color: #fff; padding: 2px 6px; border-radius: 3px; width: 60px;
+                       text-align: center; }
 
         .param-row { margin-bottom: 20px; }
         .param-header { display: flex; justify-content: space-between; align-items: center;
@@ -90,6 +94,9 @@
 
         .slider-wrapper { position: relative; }
         .slider-wrapper .slider { margin: 0; }
+        .center-mark { position: absolute; top: 50%; transform: translateY(-50%);
+                       width: 2px; height: 12px; background: rgba(255,255,255,0.4);
+                       pointer-events: none; border-radius: 1px; }
 
         .hint { font-size: 9px; opacity: 0.3; margin-top: 10px; text-align: center;
                 font-style: italic; }
@@ -133,7 +140,7 @@
 <body>
     <a href="index.html" id="title-link">
         <div id="title">Volumetric Particles</div>
-        <div id="subtitle">Stratification volumétrique 3D — Champ topologique sans horizon</div>
+        <div id="subtitle">Image stratifiée — Lecture volumétrique par profondeur computationnelle</div>
     </a>
 
     <div id="shape-selector" class="hidden">
@@ -146,7 +153,7 @@
 
     <!-- Version Selector -->
     <div id="version-selector">
-        <span>v<span id="current-version">1.3</span></span>
+        <span>v<span id="current-version">1.1</span></span>
     </div>
     <div id="version-menu">
         <div class="version-item" data-version="1.3" data-file="stratified-volume.html">v1.3 — Champ volumétrique 3D</div>
@@ -178,6 +185,7 @@
                 </div>
                 <div class="slider-wrapper">
                     <input type="range" class="slider" id="size" min="0.1" max="2.0" step="0.01" value="1.0">
+                    <div class="center-mark" style="left: 47.4%;"></div>
                 </div>
             </div>
 
@@ -192,6 +200,7 @@
                 </div>
                 <div class="slider-wrapper">
                     <input type="range" class="slider" id="density" min="1" max="15" step="1" value="7">
+                    <div class="center-mark" style="left: 42.9%;"></div>
                 </div>
             </div>
 
@@ -206,34 +215,37 @@
                 </div>
                 <div class="slider-wrapper">
                     <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
+                    <div class="center-mark" style="left: 31.0%;"></div>
                 </div>
             </div>
 
             <div class="param-row">
                 <div class="param-header">
-                    <label>NOISE SCALE</label>
+                    <label>TRANSITION WIDTH</label>
                     <div class="param-controls">
-                        <button class="arrow-btn" data-param="noiseScale" data-dir="down">▼</button>
-                        <span class="value" id="val-noiseScale" data-param="noiseScale">0.005</span>
-                        <button class="arrow-btn" data-param="noiseScale" data-dir="up">▲</button>
+                        <button class="arrow-btn" data-param="transition" data-dir="down">▼</button>
+                        <span class="value" id="val-transition" data-param="transition">0.12</span>
+                        <button class="arrow-btn" data-param="transition" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="noiseScale" min="0.001" max="0.02" step="0.001" value="0.005">
+                    <input type="range" class="slider" id="transition" min="0.02" max="0.4" step="0.02" value="0.12">
+                    <div class="center-mark" style="left: 26.3%;"></div>
                 </div>
             </div>
 
             <div class="param-row">
                 <div class="param-header">
-                    <label>NOISE INFLUENCE</label>
+                    <label>STRATIFICATION CENTER</label>
                     <div class="param-controls">
-                        <button class="arrow-btn" data-param="noiseInfluence" data-dir="down">▼</button>
-                        <span class="value" id="val-noiseInfluence" data-param="noiseInfluence">1.0</span>
-                        <button class="arrow-btn" data-param="noiseInfluence" data-dir="up">▲</button>
+                        <button class="arrow-btn" data-param="stratCenter" data-dir="down">▼</button>
+                        <span class="value" id="val-stratCenter" data-param="stratCenter">0.0</span>
+                        <button class="arrow-btn" data-param="stratCenter" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="noiseInfluence" min="0.0" max="2.0" step="0.1" value="1.0">
+                    <input type="range" class="slider" id="stratCenter" min="-1.0" max="1.0" step="0.05" value="0.0">
+                    <div class="center-mark" style="left: 50%;"></div>
                 </div>
             </div>
 
@@ -251,15 +263,7 @@
                 </div>
                 <div class="slider-wrapper">
                     <input type="range" class="slider" id="blackThreshold" min="0" max="128" step="1" value="30">
-                </div>
-            </div>
-
-            <div class="param-row">
-                <div class="param-header">
-                    <label style="display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" id="debug-mode" style="width: 14px; height: 14px; cursor: pointer;">
-                        <span>DEBUG MODE (MixFactor)</span>
-                    </label>
+                    <div class="center-mark" style="left: 23.4%;"></div>
                 </div>
             </div>
 
@@ -273,9 +277,6 @@
 
     <script src="three.min.js"></script>
     <script>
-        // === VERSION ===
-        const VERSION = "1.3";
-
         // === GLOBAL STATE ===
         let scene, camera, renderer, particles;
         let geometry, material;
@@ -284,9 +285,8 @@
         let particleDensity = 1;
         let hideBlack = false;
         let blackThreshold = 30;
-        let noiseScale = 0.005;
-        let noiseInfluence = 1.0;
-        let debugMode = false;
+        let transitionWidth = 0.12; // V3.1: Tighter default for sharper stratification
+        let stratificationCenter = 0.0;
         let currentImageA = null;
         let currentImageB = null;
         let currentShape = 'circle';
@@ -297,8 +297,8 @@
             size: { min: 0.1, max: 2.0, step: 0.01, decimals: 2, suffix: '' },
             density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
             depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
-            noiseScale: { min: 0.001, max: 0.02, step: 0.001, decimals: 3, suffix: '' },
-            noiseInfluence: { min: 0.0, max: 2.0, step: 0.1, decimals: 1, suffix: '' },
+            transition: { min: 0.02, max: 0.4, step: 0.02, decimals: 2, suffix: '' }, // V3.1: Tighter range
+            stratCenter: { min: -1.0, max: 1.0, step: 0.05, decimals: 2, suffix: '' },
             blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
         };
 
@@ -323,11 +323,52 @@
                 const slider = document.getElementById(param);
                 slider.addEventListener('input', function() {
                     updateValueDisplay(param);
-                    if (param === 'noiseScale') noiseScale = parseFloat(this.value);
-                    if (param === 'noiseInfluence') noiseInfluence = parseFloat(this.value);
+                    // Update global variables for stratification parameters
+                    if (param === 'transition') transitionWidth = parseFloat(this.value);
+                    if (param === 'stratCenter') stratificationCenter = parseFloat(this.value);
                     scheduleRegenerate();
                 });
                 updateValueDisplay(param);
+            });
+        }
+
+        function setupValueEditing() {
+            document.querySelectorAll('.value[data-param]').forEach(valueSpan => {
+                valueSpan.addEventListener('dblclick', function() {
+                    const param = this.dataset.param;
+                    const config = paramConfigs[param];
+                    const slider = document.getElementById(param);
+                    const currentValue = parseFloat(slider.value);
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.className = 'value-input';
+                    input.min = config.min;
+                    input.max = config.max;
+                    input.step = config.step;
+                    input.value = currentValue.toFixed(config.decimals);
+
+                    this.replaceWith(input);
+                    input.focus();
+                    input.select();
+
+                    function finishEdit() {
+                        let newValue = parseFloat(input.value);
+                        newValue = Math.max(config.min, Math.min(config.max, newValue));
+                        slider.value = newValue;
+                        updateValueDisplay(param);
+                        if (param === 'transition') transitionWidth = newValue;
+                        if (param === 'stratCenter') stratificationCenter = newValue;
+                        scheduleRegenerate();
+                        input.replaceWith(valueSpan);
+                    }
+
+                    input.addEventListener('blur', finishEdit);
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') finishEdit();
+                        if (e.key === 'Escape') input.replaceWith(valueSpan);
+                    });
+                });
             });
         }
 
@@ -351,8 +392,8 @@
                     value = Math.max(config.min, Math.min(config.max, value));
                     slider.value = value;
                     updateValueDisplay(param);
-                    if (param === 'noiseScale') noiseScale = value;
-                    if (param === 'noiseInfluence') noiseInfluence = value;
+                    if (param === 'transition') transitionWidth = value;
+                    if (param === 'stratCenter') stratificationCenter = value;
                     scheduleRegenerate();
                 }
 
@@ -472,6 +513,7 @@
             });
 
             setupSliderListeners();
+            setupValueEditing();
             setupArrowButtons();
             animate();
         }
@@ -494,6 +536,7 @@
                         document.getElementById('preview-b').classList.add('loaded');
                     }
 
+                    // Show controls when both images are loaded
                     if (currentImageA && currentImageB) {
                         const isFirstLoad = document.getElementById('controls').classList.contains('hidden');
                         if (isFirstLoad) {
@@ -513,94 +556,141 @@
         document.getElementById('file-input-a').onchange = e => loadImageFile(e.target.files[0], 'a');
         document.getElementById('file-input-b').onchange = e => loadImageFile(e.target.files[0], 'b');
 
-        // === CORE: VOLUMETRIC FIELD GENERATION (V1.3) ===
+        // === CORE: STRATIFIED VOLUME GENERATION ===
         /**
-         * VERSION 1.3: CHAMP VOLUMÉTRIQUE 3D SANS HORIZON
-         *
-         * (a) CHAMP VOLUMÉTRIQUE F(p):
-         *     - Bruit 3D procédural multi-octave (FBM) calculé en shader
-         *     - Fonction hash3D → pseudo-random basé sur position world 3D
-         *     - 3 octaves pour éliminer toute régularité planaire
-         *     - Échelle et influence contrôlables via uniforms
-         *
-         * (b) CALCUL DU MIX:
-         *     - mixFactor = clamp(0.5 + 0.5 * F(worldPos), 0.0, 1.0)
-         *     - Aucun smoothstep global, aucune iso-surface
-         *     - Transition organique, fragmentée, topologique
-         *
-         * (c) MODE DEBUG:
-         *     - Toggle pour visualiser mixFactor en niveaux de gris
-         *     - Prouve l'absence d'horizon ou surface dominante
+         * PROTOTYPE 3.1 LOGIC (V3.1 - INFORMATIONAL STRATIFICATION):
+         * - Single particle cloud with TWO color states + semanticDepth
+         * - SEPARATION: position.z (pz) = volumetric depth (aesthetic diffusion)
+         *                semanticDepth = stratification field (content-driven, SPATIALLY COHERENT)
+         * - V3.1 CHANGES:
+         *   1. LUMA_DIFF mode: semanticDepth based on image structural difference
+         *   2. SPATIAL BLUR: luma fields smoothed before diff to create coherent zones
+         *   3. Tighter transition (lower default transitionWidth)
+         *   4. Stronger correlation pz/semanticDepth for volumetric anchoring
+         * - Shader: mix(colorA, colorB, smoothstep(semanticDepth))
          */
         function generate(imgA, imgB) {
             const TARGET_SIZE = 1000;
+
+            // V3.1: Semantic mode (informational stratification)
+            const SEMANTIC_MODE = 'LUMA_DIFF'; // 'LUMA_DIFF', 'LUMA_A', or 'AXIS'
+            const LUMA_GAIN = 3.0; // Amplify luma differences for clearer zones
+            const SEMANTIC_Z_BIAS = 40; // V3.1: Stronger correlation for zone anchoring
+            const BLUR_AMOUNT = 2; // Spatial coherence: blur radius in pixels
 
             // Read parameters
             pointSize = parseFloat(document.getElementById('size').value);
             particleDensity = parseInt(document.getElementById('density').value);
             depthMultiplier = parseFloat(document.getElementById('depth').value);
-            noiseScale = parseFloat(document.getElementById('noiseScale').value);
-            noiseInfluence = parseFloat(document.getElementById('noiseInfluence').value);
+            transitionWidth = parseFloat(document.getElementById('transition').value);
+            stratificationCenter = parseFloat(document.getElementById('stratCenter').value);
             hideBlack = document.getElementById('hide-black').checked;
             blackThreshold = parseInt(document.getElementById('blackThreshold').value);
-            debugMode = document.getElementById('debug-mode').checked;
 
             const step = Math.floor(15 / particleDensity);
 
-            // Process images (no blur needed - noise provides variation)
-            const canvas = document.createElement('canvas');
-            canvas.width = TARGET_SIZE;
-            canvas.height = TARGET_SIZE;
-            const ctx = canvas.getContext('2d');
+            // === SPATIAL BLUR FOR SEMANTIC COHERENCE ===
+            // V3.1: Apply spatial blur to create coherent luma fields
+            // This transforms pixel-by-pixel noise into persistent volumetric zones
 
-            // Extract image A data
+            // Create blurred canvas for image A
+            const canvasA = document.createElement('canvas');
+            canvasA.width = TARGET_SIZE;
+            canvasA.height = TARGET_SIZE;
+            const ctxA = canvasA.getContext('2d');
+
             const sourceSizeA = Math.min(imgA.width, imgA.height);
             const offsetXA = (imgA.width - sourceSizeA) / 2;
             const offsetYA = (imgA.height - sourceSizeA) / 2;
-            ctx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
-            ctx.drawImage(imgA, offsetXA, offsetYA, sourceSizeA, sourceSizeA, 0, 0, TARGET_SIZE, TARGET_SIZE);
-            const dataA = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
 
-            // Extract image B data
+            // Apply blur filter for spatial coherence
+            ctxA.filter = `blur(${BLUR_AMOUNT}px)`;
+            ctxA.drawImage(imgA, offsetXA, offsetYA, sourceSizeA, sourceSizeA, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const dataA = ctxA.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+
+            // Create blurred canvas for image B
+            const canvasB = document.createElement('canvas');
+            canvasB.width = TARGET_SIZE;
+            canvasB.height = TARGET_SIZE;
+            const ctxB = canvasB.getContext('2d');
+
             const sourceSizeB = Math.min(imgB.width, imgB.height);
             const offsetXB = (imgB.width - sourceSizeB) / 2;
             const offsetYB = (imgB.height - sourceSizeB) / 2;
-            ctx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
-            ctx.drawImage(imgB, offsetXB, offsetYB, sourceSizeB, sourceSizeB, 0, 0, TARGET_SIZE, TARGET_SIZE);
-            const dataB = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
 
-            // === PARTICLE DATA (simplified - no semanticDepth) ===
+            // Apply blur filter for spatial coherence
+            ctxB.filter = `blur(${BLUR_AMOUNT}px)`;
+            ctxB.drawImage(imgB, offsetXB, offsetYB, sourceSizeB, sourceSizeB, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const dataB = ctxB.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+
+            // === PARTICLE DATA STRUCTURE ===
+            // Each particle has:
+            // - position(x,y,z) where z is RANDOM (volumetric depth)
+            // - colorA, colorB (from images)
+            // - semanticDepth (CONTINUOUS spatial value for stratification)
             const positions = [];
             const colorsA = [];
             const colorsB = [];
+            const semanticDepths = []; // NEW: dedicated stratification axis
 
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
             const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
 
+            // Create unified particle cloud with dual color states
             for (let y = 0; y < TARGET_SIZE; y += step) {
                 for (let x = 0; x < TARGET_SIZE; x += step) {
                     const i = (y * TARGET_SIZE + x) * 4;
                     const alphaA = dataA[i + 3];
                     const alphaB = dataB[i + 3];
 
+                    // Only create particle if at least one image has visible pixel
                     if (alphaA > 30 || alphaB > 30) {
                         const rA = dataA[i], gA = dataA[i+1], bA = dataA[i+2];
                         const rB = dataB[i], gB = dataB[i+1], bB = dataB[i+2];
 
-                        // Black filtering
+                        // Black filtering: skip if BOTH images are too dark
                         const maxColorA = Math.max(rA, gA, bA);
                         const maxColorB = Math.max(rB, gB, bB);
                         if (hideBlack && maxColorA < blackThreshold && maxColorB < blackThreshold) {
                             continue;
                         }
 
-                        // Position: pure random depth (aesthetic)
+                        // === SEMANTIC DEPTH (stratification, content-driven) ===
+                        // V3.1: Calculate BEFORE position to enable correlation
+                        let semanticDepth;
+
+                        if (SEMANTIC_MODE === 'LUMA_DIFF') {
+                            // V3.1 PRIMARY MODE: Structural difference between images
+                            // Encodes which image "dominates" this region structurally
+                            const lumaA = (rA * 0.2126 + gA * 0.7152 + bA * 0.0722) / 255;
+                            const lumaB = (rB * 0.2126 + gB * 0.7152 + bB * 0.0722) / 255;
+                            const lumaDiff = (lumaA - lumaB) * LUMA_GAIN;
+                            semanticDepth = Math.max(-1, Math.min(1, lumaDiff)); // Clamp [-1,1]
+
+                        } else if (SEMANTIC_MODE === 'LUMA_A') {
+                            // Alternative: luminance of image A only
+                            const lumaA = (rA * 0.2126 + gA * 0.7152 + bA * 0.0722) / 255;
+                            semanticDepth = lumaA * 2 - 1;
+
+                        } else if (SEMANTIC_MODE === 'AXIS') {
+                            // Fallback: geometric vertical axis
+                            semanticDepth = (y / (TARGET_SIZE - 1)) * 2 - 1;
+                        }
+
+                        semanticDepths.push(semanticDepth);
+
+                        // === VOLUMETRIC DEPTH (aesthetic + weak semantic anchoring) ===
+                        // V3.1: Introduce weak correlation between semantic field and depth
+                        // Creates volumetric "zones" without creating planar layers
                         const px = (x - halfSize) * scaleFactor;
                         const py = -(y - halfSize) * scaleFactor;
-                        const pz = (Math.random() - 0.5) * depthSpread;
+                        const baseRandomZ = (Math.random() - 0.5) * depthSpread;
+                        const pz = baseRandomZ + semanticDepth * SEMANTIC_Z_BIAS;
 
                         positions.push(px, py, pz);
+
+                        // Store both color states
                         colorsA.push(rA / 255, gA / 255, bA / 255);
                         colorsB.push(rB / 255, gB / 255, bB / 255);
                     }
@@ -622,22 +712,22 @@
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
             geometry.setAttribute('colorA', new THREE.Float32BufferAttribute(colorsA, 3));
             geometry.setAttribute('colorB', new THREE.Float32BufferAttribute(colorsB, 3));
+            geometry.setAttribute('semanticDepth', new THREE.Float32BufferAttribute(semanticDepths, 1));
 
-            // === SHADER WITH 3D VOLUMETRIC FIELD ===
+            // === CUSTOM SHADER FOR STRATIFICATION ===
+            // Vertex shader: pass through colorA, colorB, and SEMANTIC depth
             const vertexShader = `
                 attribute vec3 colorA;
                 attribute vec3 colorB;
+                attribute float semanticDepth;
                 varying vec3 vColorA;
                 varying vec3 vColorB;
-                varying vec3 vWorldPos;
+                varying float vSemantic;
 
                 void main() {
                     vColorA = colorA;
                     vColorB = colorB;
-
-                    // World position for 3D noise
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                    vWorldPos = worldPos.xyz;
+                    vSemantic = semanticDepth; // Pass semantic depth, NOT worldZ
 
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
                     gl_PointSize = ${pointSize.toFixed(2)};
@@ -645,83 +735,37 @@
                 }
             `;
 
-            // Fragment shader with 3D procedural noise (multi-octave FBM)
+            // Fragment shader: stratification via semanticDepth (continuous)
             const fragmentShader = `
                 uniform sampler2D pointTexture;
-                uniform float noiseScale;
-                uniform float noiseInfluence;
-                uniform bool debugMode;
+                uniform float transitionWidth;
+                uniform float stratCenter;
                 varying vec3 vColorA;
                 varying vec3 vColorB;
-                varying vec3 vWorldPos;
-
-                // Hash-based 3D pseudo-random (deterministic from position)
-                float hash(vec3 p) {
-                    p = fract(p * 0.3183099 + 0.1);
-                    p *= 17.0;
-                    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-                }
-
-                // 3D noise with smooth interpolation
-                float noise3D(vec3 p) {
-                    vec3 i = floor(p);
-                    vec3 f = fract(p);
-                    f = f * f * (3.0 - 2.0 * f); // smoothstep
-
-                    return mix(
-                        mix(
-                            mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
-                            mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x),
-                            f.y
-                        ),
-                        mix(
-                            mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
-                            mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x),
-                            f.y
-                        ),
-                        f.z
-                    );
-                }
-
-                // Fractal Brownian Motion (3 octaves for non-planar field)
-                float fbm(vec3 p) {
-                    float value = 0.0;
-                    float amplitude = 0.5;
-                    float frequency = 1.0;
-
-                    for (int i = 0; i < 3; i++) {
-                        value += amplitude * noise3D(p * frequency);
-                        frequency *= 2.0;
-                        amplitude *= 0.5;
-                    }
-
-                    return value;
-                }
+                varying float vSemantic;
 
                 void main() {
+                    // Apply shape texture
                     vec4 texColor = texture2D(pointTexture, gl_PointCoord);
                     if (texColor.a < 0.5) discard;
 
-                    // === VOLUMETRIC FIELD F(p) ===
-                    // 3D noise applied to world position
-                    vec3 noiseInput = vWorldPos * noiseScale;
-                    float noiseValue = fbm(noiseInput);
+                    // === STRATIFICATION LOGIC (CORRECTED) ===
+                    // vSemantic is in [-1, 1] range (spatially continuous)
+                    // stratCenter is in [-1, 1] range
+                    // transitionWidth controls blend zone width
 
-                    // Transform to [-1, 1] range then apply influence
-                    float fieldValue = (noiseValue * 2.0 - 1.0) * noiseInfluence;
+                    // Compute mix factor: 0 = colorA, 1 = colorB
+                    // smoothstep creates continuous transition
+                    float mixFactor = smoothstep(
+                        stratCenter - transitionWidth,
+                        stratCenter + transitionWidth,
+                        vSemantic
+                    );
 
-                    // mixFactor from volumetric field (no global threshold)
-                    float mixFactor = clamp(0.5 + 0.5 * fieldValue, 0.0, 1.0);
+                    // Final color: continuous spatial mix
+                    vec3 finalColor = mix(vColorA, vColorB, mixFactor);
 
-                    // === DEBUG MODE ===
-                    if (debugMode) {
-                        // Show mixFactor as grayscale
-                        gl_FragColor = vec4(vec3(mixFactor), 1.0);
-                    } else {
-                        // Normal rendering: continuous organic mix
-                        vec3 finalColor = mix(vColorA, vColorB, mixFactor);
-                        gl_FragColor = vec4(finalColor, 1.0);
-                    }
+                    gl_FragColor = vec4(finalColor, 1.0);
                 }
             `;
 
@@ -729,9 +773,8 @@
             material = new THREE.ShaderMaterial({
                 uniforms: {
                     pointTexture: { value: shapeTexture },
-                    noiseScale: { value: noiseScale },
-                    noiseInfluence: { value: noiseInfluence },
-                    debugMode: { value: debugMode }
+                    transitionWidth: { value: transitionWidth },
+                    stratCenter: { value: stratificationCenter }
                 },
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
@@ -757,15 +800,21 @@
             document.getElementById('size').value = 1.0;
             document.getElementById('density').value = 7;
             document.getElementById('depth').value = 1.0;
-            document.getElementById('noiseScale').value = 0.005;
-            document.getElementById('noiseInfluence').value = 1.0;
+            document.getElementById('transition').value = 0.12; // V3.1: Tighter default
+            document.getElementById('stratCenter').value = 0.0;
             document.getElementById('blackThreshold').value = 30;
             document.getElementById('hide-black').checked = false;
-            document.getElementById('debug-mode').checked = false;
             hideBlack = false;
-            debugMode = false;
 
-            Object.keys(paramConfigs).forEach(param => updateValueDisplay(param));
+            updateValueDisplay('size');
+            updateValueDisplay('density');
+            updateValueDisplay('depth');
+            updateValueDisplay('transition');
+            updateValueDisplay('stratCenter');
+            updateValueDisplay('blackThreshold');
+
+            transitionWidth = 0.12; // V3.1: Tighter default
+            stratificationCenter = 0.0;
 
             if (currentImageA && currentImageB) {
                 generate(currentImageA, currentImageB);
@@ -799,9 +848,8 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         };
 
-        // === EVENT LISTENERS ===
+        // === SHAPE SELECTOR ===
         document.addEventListener('DOMContentLoaded', function() {
-            // Shape selector
             document.querySelectorAll('.shape-btn[data-shape]').forEach(btn => {
                 btn.addEventListener('click', function() {
                     document.querySelectorAll('.shape-btn[data-shape]').forEach(b => b.classList.remove('active'));
@@ -819,15 +867,8 @@
                 scheduleRegenerate();
             });
 
-            // Debug mode checkbox
-            document.getElementById('debug-mode').addEventListener('change', function() {
-                debugMode = this.checked;
-                if (material) {
-                    material.uniforms.debugMode.value = debugMode;
-                }
-            });
-
             // Version selector
+            const VERSION = "1.1";
             const versionSelector = document.getElementById('version-selector');
             const versionMenu = document.getElementById('version-menu');
 
@@ -848,7 +889,7 @@
                 item.addEventListener('click', function(e) {
                     e.stopPropagation();
                     const file = this.dataset.file;
-                    if (file && file !== 'stratified-volume.html') {
+                    if (file && file !== 'stratified-volume-v1.1.html') {
                         window.location.href = file;
                     }
                 });
