@@ -165,18 +165,24 @@
             reader.onload = function(ev) {
                 const img = new Image();
                 img.onload = function() {
+                    const isFirstLoad = (currentImage === null);
                     currentImage = img;
                     document.getElementById('preview').innerHTML = '<img src="' + ev.target.result + '">';
 
-                    // Reset sliders to default (cube)
-                    document.getElementById('size').value = 2;
-                    document.getElementById('density').value = 1;
-                    document.getElementById('depth').value = 1.0;
-                    document.getElementById('breath').value = 0.5;
-                    document.getElementById('val-size').textContent = '2.0';
-                    document.getElementById('val-density').textContent = '1x';
-                    document.getElementById('val-depth').textContent = '1.0x';
-                    document.getElementById('val-breath').textContent = '0.5';
+                    // Reset sliders to default ONLY on first load
+                    if (isFirstLoad) {
+                        document.getElementById('size').value = 2;
+                        document.getElementById('density').value = 1;
+                        document.getElementById('depth').value = 1.0;
+                        document.getElementById('breath').value = 0.5;
+                        document.getElementById('val-size').textContent = '2.0';
+                        document.getElementById('val-density').textContent = '1x';
+                        document.getElementById('val-depth').textContent = '1.0x';
+                        document.getElementById('val-breath').textContent = '0.5';
+
+                        document.getElementById('load-section').classList.add('hidden');
+                        document.getElementById('controls').classList.remove('hidden');
+                    }
 
                     generate(img);
                 };
@@ -302,9 +308,6 @@
             if (particles) scene.remove(particles);
             particles = new THREE.Points(geometry, material);
             scene.add(particles);
-
-            document.getElementById('load-section').classList.add('hidden');
-            document.getElementById('controls').classList.remove('hidden');
         }
 
         function applySettings() {
@@ -335,13 +338,8 @@
         }
 
         function changeImage() {
-            // Clear current and return to load screen
-            currentImage = null;
-            if (particles) scene.remove(particles);
-            document.getElementById('preview').innerHTML = 'Empty';
-            document.getElementById('file-input').value = '';
-            document.getElementById('load-section').classList.remove('hidden');
-            document.getElementById('controls').classList.add('hidden');
+            // Open file picker - keep current parameters
+            document.getElementById('file-input').click();
         }
 
         // Animation with subtle breathing movement
