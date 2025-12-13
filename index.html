@@ -75,11 +75,11 @@
         </div>
 
         <div id="controls" class="hidden">
-            <label>Point Size <span class="value" id="val-size">0.020</span></label>
-            <input type="range" class="slider" id="size" min="0.001" max="1.0" step="0.001" value="0.02" oninput="document.getElementById('val-size').textContent = parseFloat(this.value).toFixed(3)">
+            <label>Point Size <span class="value" id="val-size">2.0</span></label>
+            <input type="range" class="slider" id="size" min="0.1" max="50" step="0.1" value="2" oninput="document.getElementById('val-size').textContent = parseFloat(this.value).toFixed(1)">
 
-            <label>Particle Density <span class="value" id="val-density">1</span></label>
-            <input type="range" class="slider" id="density" min="1" max="10" step="1" value="1" oninput="document.getElementById('val-density').textContent = this.value">
+            <label>Particle Density <span class="value" id="val-density">1x</span></label>
+            <input type="range" class="slider" id="density" min="1" max="10" step="1" value="1" oninput="document.getElementById('val-density').textContent = this.value + 'x'">
 
             <label>Depth Spread <span class="value" id="val-depth">1.0x</span></label>
             <input type="range" class="slider" id="depth" min="0.1" max="5" step="0.1" value="1" oninput="document.getElementById('val-depth').textContent = parseFloat(this.value).toFixed(1) + 'x'">
@@ -97,11 +97,11 @@
 
     <script src="three.min.js"></script>
     <script>
-        let scene, camera, renderer, particles, grid;
+        let scene, camera, renderer, particles;
         let geometry, material;
         let breathSpeed = 0.5;
         let depthMultiplier = 1.0;
-        let pointSize = 0.02;
+        let pointSize = 2.0;
         let particleDensity = 1;
         let time = 0;
         let currentImage = null;
@@ -118,14 +118,6 @@
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
             camera.position.z = 300;
-
-            // Add grid helper (background workspace)
-            const gridSize = 1000;
-            const gridDivisions = 20;
-            grid = new THREE.GridHelper(gridSize, gridDivisions, 0x333333, 0x111111);
-            grid.material.opacity = 0.15;
-            grid.material.transparent = true;
-            scene.add(grid);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -165,10 +157,9 @@
             animate();
         }
 
-        // Load image
-        document.getElementById('file-input').onchange = function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        // Load image function
+        function loadImageFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
 
             const reader = new FileReader();
             reader.onload = function(ev) {
@@ -178,12 +169,12 @@
                     document.getElementById('preview').innerHTML = '<img src="' + ev.target.result + '">';
 
                     // Reset sliders to default (cube)
-                    document.getElementById('size').value = 0.02;
+                    document.getElementById('size').value = 2;
                     document.getElementById('density').value = 1;
                     document.getElementById('depth').value = 1.0;
                     document.getElementById('breath').value = 0.5;
-                    document.getElementById('val-size').textContent = '0.020';
-                    document.getElementById('val-density').textContent = '1';
+                    document.getElementById('val-size').textContent = '2.0';
+                    document.getElementById('val-density').textContent = '1x';
                     document.getElementById('val-depth').textContent = '1.0x';
                     document.getElementById('val-breath').textContent = '0.5';
 
@@ -192,7 +183,39 @@
                 img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
+        }
+
+        // File input change
+        document.getElementById('file-input').onchange = function(e) {
+            loadImageFile(e.target.files[0]);
         };
+
+        // Drag & drop on preview area
+        const preview = document.getElementById('preview');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.5)';
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.1)';
+            });
+        });
+
+        preview.addEventListener('drop', function(e) {
+            const file = e.dataTransfer.files[0];
+            loadImageFile(file);
+        });
 
         function generate(img) {
             if (typeof THREE === 'undefined') {
@@ -208,7 +231,7 @@
 
             // Crop to square (take smallest dimension)
             const TARGET_SIZE = Math.min(img.width, img.height);
-            const step = particleDensity; // Higher density = more particles (step 1 = all pixels)
+            const step = Math.max(1, Math.floor(10 / particleDensity)); // Higher density = smaller step = more particles
             const canvas = document.createElement('canvas');
             canvas.width = TARGET_SIZE;
             canvas.height = TARGET_SIZE;
@@ -273,7 +296,7 @@
                 vertexColors: true,
                 transparent: true,
                 opacity: 1.0,
-                sizeAttenuation: false
+                sizeAttenuation: true
             });
 
             if (particles) scene.remove(particles);
@@ -296,12 +319,12 @@
 
         function resetToDefaults() {
             // Reset sliders to default values
-            document.getElementById('size').value = 0.02;
+            document.getElementById('size').value = 2;
             document.getElementById('density').value = 1;
             document.getElementById('depth').value = 1.0;
             document.getElementById('breath').value = 0.5;
-            document.getElementById('val-size').textContent = '0.020';
-            document.getElementById('val-density').textContent = '1';
+            document.getElementById('val-size').textContent = '2.0';
+            document.getElementById('val-density').textContent = '1x';
             document.getElementById('val-depth').textContent = '1.0x';
             document.getElementById('val-breath').textContent = '0.5';
 
