@@ -14,10 +14,13 @@
 
         #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 
-        #ui { position: fixed; bottom: 20px; right: 20px; z-index: 100;
-              background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
-              padding: 24px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);
-              max-width: 360px; }
+        #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+              z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+              padding: 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+              max-width: 500px; width: 90%; transition: all 0.4s ease; }
+
+        #ui.loaded { top: auto; bottom: 20px; left: auto; right: 20px;
+                     transform: none; max-width: 360px; width: auto; padding: 24px; }
 
         #title { position: fixed; top: 20px; left: 20px; z-index: 100;
                  font-size: 18px; font-weight: 600; opacity: 0.7;
@@ -101,16 +104,16 @@
 
         <div id="controls" class="hidden">
             <label>Point Size <span class="value" id="val-size">2.0</span></label>
-            <input type="range" class="slider" id="size" min="0.1" max="50" step="0.1" value="2" oninput="document.getElementById('val-size').textContent = parseFloat(this.value).toFixed(1)">
+            <input type="range" class="slider" id="size" min="0.1" max="50" step="0.1" value="2" oninput="document.getElementById('val-size').textContent = parseFloat(this.value).toFixed(1); scheduleRegenerate()">
 
             <label>Particle Density <span class="value" id="val-density">1x</span></label>
-            <input type="range" class="slider" id="density" min="1" max="10" step="1" value="1" oninput="document.getElementById('val-density').textContent = this.value + 'x'">
+            <input type="range" class="slider" id="density" min="1" max="10" step="1" value="1" oninput="document.getElementById('val-density').textContent = this.value + 'x'; scheduleRegenerate()">
 
             <label>Depth Spread <span class="value" id="val-depth">1.0x</span></label>
-            <input type="range" class="slider" id="depth" min="0.1" max="5" step="0.1" value="1" oninput="document.getElementById('val-depth').textContent = parseFloat(this.value).toFixed(1) + 'x'">
+            <input type="range" class="slider" id="depth" min="0.1" max="5" step="0.1" value="1" oninput="document.getElementById('val-depth').textContent = parseFloat(this.value).toFixed(1) + 'x'; scheduleRegenerate()">
 
             <label>Breath Speed <span class="value" id="val-breath">0.5</span></label>
-            <input type="range" class="slider" id="breath" min="0" max="5" step="0.1" value="0.5" oninput="document.getElementById('val-breath').textContent = parseFloat(this.value).toFixed(1)">
+            <input type="range" class="slider" id="breath" min="0" max="5" step="0.1" value="0.5" oninput="document.getElementById('val-breath').textContent = parseFloat(this.value).toFixed(1); scheduleRegenerate()">
 
             <button onclick="applySettings()">Apply</button>
             <button onclick="resetToDefaults()">Reset to Defaults</button>
@@ -131,6 +134,15 @@
         let time = 0;
         let currentImage = null;
         let currentShape = 'circle';
+        let regenerateTimeout;
+
+        // Real-time regeneration with debounce
+        function scheduleRegenerate() {
+            clearTimeout(regenerateTimeout);
+            regenerateTimeout = setTimeout(() => {
+                if (currentImage) generate(currentImage);
+            }, 150); // 150ms debounce to avoid too many regenerations
+        }
 
         // Shape texture generators
         function createCircleTexture() {
@@ -287,6 +299,7 @@
 
                         document.getElementById('load-section').classList.add('hidden');
                         document.getElementById('controls').classList.remove('hidden');
+                        document.getElementById('ui').classList.add('loaded');
                     }
 
                     generate(img);
