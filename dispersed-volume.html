@@ -141,7 +141,8 @@
                 </div>
                 <div class="slider-wrapper">
                     <input type="range" class="slider" id="size" min="0.1" max="2.0" step="0.01" value="1.0">
-                    <div class="center-mark" style="left: 47.4%;"></div>
+                    <div class="center-mark" id="size-mark-2d" style="left: 47.4%;"></div>
+                    <div class="center-mark" id="size-mark-3d" style="left: 13.2%; display: none;"></div>
                 </div>
             </div>
 
@@ -597,20 +598,20 @@
             breathSpeed = parseFloat(document.getElementById('breath').value);
             brightness = parseFloat(document.getElementById('brightness').value);
 
-            // Crop to square (take smallest dimension)
-            const TARGET_SIZE = Math.min(img.width, img.height);
+            // Normalize all images to fixed size for consistent volume
+            const TARGET_SIZE = 1000;
             const step = Math.max(1, Math.floor(10 / particleDensity)); // Higher density = smaller step = more particles
             const canvas = document.createElement('canvas');
             canvas.width = TARGET_SIZE;
             canvas.height = TARGET_SIZE;
             const ctx = canvas.getContext('2d');
 
-            // Crop to center square
+            // Crop to center square and resize to TARGET_SIZE
             const sourceSize = Math.min(img.width, img.height);
             const offsetX = (img.width - sourceSize) / 2;
             const offsetY = (img.height - sourceSize) / 2;
 
-            // Draw cropped and resized image
+            // Always resize to TARGET_SIZE for consistent volume size
             ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
 
             const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
@@ -863,6 +864,18 @@
             document.getElementById('mode-3d-btn').addEventListener('click', function() {
                 is3DMode = !is3DMode;
                 this.classList.toggle('active');
+
+                // Toggle size slider center marks for 2D/3D modes
+                const mark2D = document.getElementById('size-mark-2d');
+                const mark3D = document.getElementById('size-mark-3d');
+                if (is3DMode) {
+                    mark2D.style.display = 'none';
+                    mark3D.style.display = 'block';
+                } else {
+                    mark2D.style.display = 'block';
+                    mark3D.style.display = 'none';
+                }
+
                 if (currentImage) {
                     generate(currentImage);
                 }
