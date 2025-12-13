@@ -530,11 +530,12 @@
          * PROTOTYPE 3.1 LOGIC (V3.1 - INFORMATIONAL STRATIFICATION):
          * - Single particle cloud with TWO color states + semanticDepth
          * - SEPARATION: position.z (pz) = volumetric depth (aesthetic diffusion)
-         *                semanticDepth = stratification field (content-driven)
+         *                semanticDepth = stratification field (content-driven, SPATIALLY COHERENT)
          * - V3.1 CHANGES:
          *   1. LUMA_DIFF mode: semanticDepth based on image structural difference
-         *   2. Tighter transition (lower default transitionWidth)
-         *   3. Weak correlation pz/semanticDepth for volumetric anchoring
+         *   2. SPATIAL BLUR: luma fields smoothed before diff to create coherent zones
+         *   3. Tighter transition (lower default transitionWidth)
+         *   4. Stronger correlation pz/semanticDepth for volumetric anchoring
          * - Shader: mix(colorA, colorB, smoothstep(semanticDepth))
          */
         function generate(imgA, imgB) {
@@ -543,7 +544,8 @@
             // V3.1: Semantic mode (informational stratification)
             const SEMANTIC_MODE = 'LUMA_DIFF'; // 'LUMA_DIFF', 'LUMA_A', or 'AXIS'
             const LUMA_GAIN = 3.0; // Amplify luma differences for clearer zones
-            const SEMANTIC_Z_BIAS = 20; // Weak correlation: semantic → depth anchoring
+            const SEMANTIC_Z_BIAS = 40; // V3.1: Stronger correlation for zone anchoring
+            const BLUR_AMOUNT = 2; // Spatial coherence: blur radius in pixels
 
             // Read parameters
             pointSize = parseFloat(document.getElementById('size').value);
@@ -556,27 +558,39 @@
 
             const step = Math.floor(15 / particleDensity);
 
-            // Process both images to same size
-            const canvas = document.createElement('canvas');
-            canvas.width = TARGET_SIZE;
-            canvas.height = TARGET_SIZE;
-            const ctx = canvas.getContext('2d');
+            // === SPATIAL BLUR FOR SEMANTIC COHERENCE ===
+            // V3.1: Apply spatial blur to create coherent luma fields
+            // This transforms pixel-by-pixel noise into persistent volumetric zones
 
-            // Extract image A data
+            // Create blurred canvas for image A
+            const canvasA = document.createElement('canvas');
+            canvasA.width = TARGET_SIZE;
+            canvasA.height = TARGET_SIZE;
+            const ctxA = canvasA.getContext('2d');
+
             const sourceSizeA = Math.min(imgA.width, imgA.height);
             const offsetXA = (imgA.width - sourceSizeA) / 2;
             const offsetYA = (imgA.height - sourceSizeA) / 2;
-            ctx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
-            ctx.drawImage(imgA, offsetXA, offsetYA, sourceSizeA, sourceSizeA, 0, 0, TARGET_SIZE, TARGET_SIZE);
-            const dataA = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
 
-            // Extract image B data
+            // Apply blur filter for spatial coherence
+            ctxA.filter = `blur(${BLUR_AMOUNT}px)`;
+            ctxA.drawImage(imgA, offsetXA, offsetYA, sourceSizeA, sourceSizeA, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const dataA = ctxA.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+
+            // Create blurred canvas for image B
+            const canvasB = document.createElement('canvas');
+            canvasB.width = TARGET_SIZE;
+            canvasB.height = TARGET_SIZE;
+            const ctxB = canvasB.getContext('2d');
+
             const sourceSizeB = Math.min(imgB.width, imgB.height);
             const offsetXB = (imgB.width - sourceSizeB) / 2;
             const offsetYB = (imgB.height - sourceSizeB) / 2;
-            ctx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
-            ctx.drawImage(imgB, offsetXB, offsetYB, sourceSizeB, sourceSizeB, 0, 0, TARGET_SIZE, TARGET_SIZE);
-            const dataB = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+
+            // Apply blur filter for spatial coherence
+            ctxB.filter = `blur(${BLUR_AMOUNT}px)`;
+            ctxB.drawImage(imgB, offsetXB, offsetYB, sourceSizeB, sourceSizeB, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const dataB = ctxB.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
 
             // === PARTICLE DATA STRUCTURE ===
             // Each particle has:
