@@ -427,6 +427,18 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.getElementById('canvas').appendChild(renderer.domElement);
 
+            // Add lighting for 3D mode
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight1.position.set(1, 1, 1);
+            scene.add(directionalLight1);
+
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            directionalLight2.position.set(-1, -1, -0.5);
+            scene.add(directionalLight2);
+
             // Mouse control
             let isDrag = false;
             let prevMouse = { x: 0, y: 0 };
@@ -609,11 +621,12 @@
                         positions.push(px, py, pz);
                         initialZ.push(pz);
 
-                        // Color directly from pixel
+                        // Color directly from pixel with brightness boost
+                        const brightnessBoost = 1.8;
                         colors.push(
-                            data[i] / 255,
-                            data[i + 1] / 255,
-                            data[i + 2] / 255
+                            Math.min(1.0, (data[i] / 255) * brightnessBoost),
+                            Math.min(1.0, (data[i + 1] / 255) * brightnessBoost),
+                            Math.min(1.0, (data[i + 2] / 255) * brightnessBoost)
                         );
                     }
                 }
@@ -648,10 +661,14 @@
                         baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
                 }
 
-                // Use MeshBasicMaterial without vertexColors - we'll use instance colors
-                material = new THREE.MeshBasicMaterial({
+                // Use MeshStandardMaterial for better lighting
+                material = new THREE.MeshStandardMaterial({
                     color: 0xffffff,
-                    flatShading: true
+                    flatShading: true,
+                    roughness: 0.7,
+                    metalness: 0.3,
+                    emissive: 0x000000,
+                    emissiveIntensity: 0.2
                 });
 
                 particles = new THREE.InstancedMesh(baseGeometry, material, count);
