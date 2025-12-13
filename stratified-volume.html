@@ -2,8 +2,8 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Stratified Volume - Prototype 1.2</title>
-    <!-- Version 1.2 -->
+    <title>Stratified Volume - Prototype 1.3</title>
+    <!-- Version 1.3 -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -139,7 +139,7 @@
 <body>
     <a href="index.html" id="title-link">
         <div id="title">Volumetric Particles</div>
-        <div id="subtitle">Axes orthogonaux — Lecture spatiale directionnelle</div>
+        <div id="subtitle">Projection UV par axe — Lecture view-dependent sans horizon</div>
     </a>
 
     <div id="shape-selector" class="hidden">
@@ -152,10 +152,11 @@
 
     <!-- Version Selector -->
     <div id="version-selector">
-        <span>v<span id="current-version">1.2</span></span>
+        <span>v<span id="current-version">1.3</span></span>
     </div>
     <div id="version-menu">
-        <div class="version-item" data-version="1.2" data-file="stratified-volume.html">v1.2 — Axes orthogonaux</div>
+        <div class="version-item" data-version="1.3" data-file="stratified-volume.html">v1.3 — Projection UV + view-dependent</div>
+        <div class="version-item" data-version="1.2" data-file="stratified-volume-v1.2.html">v1.2 — Axes orthogonaux</div>
         <div class="version-item" data-version="1.1" data-file="stratified-volume-v1.1.html">v1.1 — Cohérence spatiale</div>
     </div>
 
@@ -166,9 +167,9 @@
                 <div class="preview" id="preview-a">Image A</div>
                 <div class="preview" id="preview-b">Image B</div>
             </div>
-            <button onclick="document.getElementById('file-input-a').click()">Load Image A (Axe Z)</button>
+            <button onclick="document.getElementById('file-input-a').click()">Load Image A (Face ±Z)</button>
             <input type="file" id="file-input-a" accept="image/*">
-            <button onclick="document.getElementById('file-input-b').click()">Load Image B (Axe X)</button>
+            <button onclick="document.getElementById('file-input-b').click()">Load Image B (Face ±X)</button>
             <input type="file" id="file-input-b" accept="image/*">
         </div>
 
@@ -203,43 +204,29 @@
 
             <div class="param-row">
                 <div class="param-header">
-                    <label>DEPTH SPREAD</label>
+                    <label>THICKNESS</label>
                     <div class="param-controls">
-                        <button class="arrow-btn" data-param="depth" data-dir="down">▼</button>
-                        <span class="value" id="val-depth" data-param="depth">1.0X</span>
-                        <button class="arrow-btn" data-param="depth" data-dir="up">▲</button>
+                        <button class="arrow-btn" data-param="thickness" data-dir="down">▼</button>
+                        <span class="value" id="val-thickness" data-param="thickness">1.0X</span>
+                        <button class="arrow-btn" data-param="thickness" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
+                    <input type="range" class="slider" id="thickness" min="0.1" max="3.0" step="0.1" value="1.0">
                 </div>
             </div>
 
             <div class="param-row">
                 <div class="param-header">
-                    <label>AXIS STRENGTH</label>
+                    <label>AXIS SHARPNESS</label>
                     <div class="param-controls">
-                        <button class="arrow-btn" data-param="axisStrength" data-dir="down">▼</button>
-                        <span class="value" id="val-axisStrength" data-param="axisStrength">1.0</span>
-                        <button class="arrow-btn" data-param="axisStrength" data-dir="up">▲</button>
+                        <button class="arrow-btn" data-param="axisSharpness" data-dir="down">▼</button>
+                        <span class="value" id="val-axisSharpness" data-param="axisSharpness">3.0</span>
+                        <button class="arrow-btn" data-param="axisSharpness" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="axisStrength" min="0.1" max="3.0" step="0.1" value="1.0">
-                </div>
-            </div>
-
-            <div class="param-row">
-                <div class="param-header">
-                    <label>NOISE AMOUNT</label>
-                    <div class="param-controls">
-                        <button class="arrow-btn" data-param="noiseAmount" data-dir="down">▼</button>
-                        <span class="value" id="val-noiseAmount" data-param="noiseAmount">0.15</span>
-                        <button class="arrow-btn" data-param="noiseAmount" data-dir="up">▲</button>
-                    </div>
-                </div>
-                <div class="slider-wrapper">
-                    <input type="range" class="slider" id="noiseAmount" min="0.0" max="0.5" step="0.05" value="0.15">
+                    <input type="range" class="slider" id="axisSharpness" min="1.0" max="10.0" step="0.5" value="3.0">
                 </div>
             </div>
 
@@ -265,10 +252,10 @@
                     <label>DEBUG MODE</label>
                 </div>
                 <select id="debug-mode">
-                    <option value="0">Normal</option>
-                    <option value="1">Axe Z (Image A)</option>
-                    <option value="2">Axe X (Image B)</option>
-                    <option value="3">Combiné (R=Z, G=X)</option>
+                    <option value="0">Normal (Combined)</option>
+                    <option value="1">Weight A (Face ±Z)</option>
+                    <option value="2">Weight B (Face ±X)</option>
+                    <option value="3">Combined (R=wA, G=wB)</option>
                 </select>
             </div>
 
@@ -283,21 +270,22 @@
     <script src="three.min.js"></script>
     <script>
         // === VERSION ===
-        const VERSION = "1.2";
+        const VERSION = "1.3";
 
         // === GLOBAL STATE ===
         let scene, camera, renderer, particles;
         let geometry, material;
-        let depthMultiplier = 1.0;
+        let thickness = 1.0;
         let pointSize = 2.0;
         let particleDensity = 1;
         let hideBlack = false;
         let blackThreshold = 30;
-        let axisStrength = 1.0;
-        let noiseAmount = 0.15;
+        let axisSharpness = 3.0;
         let debugMode = 0;
         let currentImageA = null;
         let currentImageB = null;
+        let textureA = null;
+        let textureB = null;
         let currentShape = 'circle';
         let regenerateTimeout;
 
@@ -305,9 +293,8 @@
         const paramConfigs = {
             size: { min: 0.1, max: 2.0, step: 0.01, decimals: 2, suffix: '' },
             density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
-            depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
-            axisStrength: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
-            noiseAmount: { min: 0.0, max: 0.5, step: 0.05, decimals: 2, suffix: '' },
+            thickness: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
+            axisSharpness: { min: 1.0, max: 10.0, step: 0.5, decimals: 1, suffix: '' },
             blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
         };
 
@@ -332,8 +319,8 @@
                 const slider = document.getElementById(param);
                 slider.addEventListener('input', function() {
                     updateValueDisplay(param);
-                    if (param === 'axisStrength') axisStrength = parseFloat(this.value);
-                    if (param === 'noiseAmount') noiseAmount = parseFloat(this.value);
+                    if (param === 'thickness') thickness = parseFloat(this.value);
+                    if (param === 'axisSharpness') axisSharpness = parseFloat(this.value);
                     scheduleRegenerate();
                 });
                 updateValueDisplay(param);
@@ -360,8 +347,8 @@
                     value = Math.max(config.min, Math.min(config.max, value));
                     slider.value = value;
                     updateValueDisplay(param);
-                    if (param === 'axisStrength') axisStrength = value;
-                    if (param === 'noiseAmount') noiseAmount = value;
+                    if (param === 'thickness') thickness = value;
+                    if (param === 'axisSharpness') axisSharpness = value;
                     scheduleRegenerate();
                 }
 
@@ -522,21 +509,20 @@
         document.getElementById('file-input-a').onchange = e => loadImageFile(e.target.files[0], 'a');
         document.getElementById('file-input-b').onchange = e => loadImageFile(e.target.files[0], 'b');
 
-        // === CORE: ORTHOGONAL AXES GENERATION (V1.2) ===
+        // === CORE: UV PROJECTION + VIEW-DEPENDENT WEIGHTING (V1.3) ===
         /**
-         * VERSION 1.2: AXES ORTHOGONAUX — DISSOCIATION SPATIALE
+         * VERSION 1.3: PROJECTION UV PAR AXE + PONDÉRATION VIEW-DEPENDENT
          *
-         * Principe:
-         * - Image A révélée par axe Z (avant/arrière)
-         * - Image B révélée par axe X (droite/gauche)
-         * - Aucun seuil global, aucun smoothstep unique
-         * - Combinaison non exclusive via poids indépendants
-         *
-         * Architecture:
-         * - Position volumétrique pure (x, y, z aléatoires)
-         * - Shader calcule deux poids distincts basés sur |Z| et |X|
-         * - Perturbation légère par bruit pour éviter planarité
-         * - Pas de semanticDepth global
+         * PRINCIPE:
+         * - Images chargées comme textures GPU (THREE.Texture)
+         * - Projection UV calculée dans shader par axe:
+         *   • uvA = (p.x, p.y) pour face ±Z
+         *   • uvB = (p.z, p.y) pour face ±X
+         * - Pondération basée sur direction de vue (PAS position absolue)
+         *   • wA dépend de dot(viewDir, axeZ)
+         *   • wB dépend de dot(viewDir, axeX)
+         * - Combinaison: final = (wA*colA + wB*colB) / (wA+wB+epsilon)
+         * - Pas d'horizon fixe car dépend de la vue
          */
         function generate(imgA, imgB) {
             const TARGET_SIZE = 1000;
@@ -544,71 +530,89 @@
             // Read parameters
             pointSize = parseFloat(document.getElementById('size').value);
             particleDensity = parseInt(document.getElementById('density').value);
-            depthMultiplier = parseFloat(document.getElementById('depth').value);
-            axisStrength = parseFloat(document.getElementById('axisStrength').value);
-            noiseAmount = parseFloat(document.getElementById('noiseAmount').value);
+            thickness = parseFloat(document.getElementById('thickness').value);
+            axisSharpness = parseFloat(document.getElementById('axisSharpness').value);
             hideBlack = document.getElementById('hide-black').checked;
             blackThreshold = parseInt(document.getElementById('blackThreshold').value);
             debugMode = parseInt(document.getElementById('debug-mode').value);
 
             const step = Math.floor(15 / particleDensity);
 
-            // Process images
-            const canvas = document.createElement('canvas');
-            canvas.width = TARGET_SIZE;
-            canvas.height = TARGET_SIZE;
-            const ctx = canvas.getContext('2d');
+            // === CREATE GPU TEXTURES FROM IMAGES ===
+            // Dispose previous textures
+            if (textureA) textureA.dispose();
+            if (textureB) textureB.dispose();
 
-            // Extract image A data
+            // Create canvas for texture A
+            const canvasA = document.createElement('canvas');
             const sourceSizeA = Math.min(imgA.width, imgA.height);
+            canvasA.width = sourceSizeA;
+            canvasA.height = sourceSizeA;
+            const ctxA = canvasA.getContext('2d');
             const offsetXA = (imgA.width - sourceSizeA) / 2;
             const offsetYA = (imgA.height - sourceSizeA) / 2;
-            ctx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
-            ctx.drawImage(imgA, offsetXA, offsetYA, sourceSizeA, sourceSizeA, 0, 0, TARGET_SIZE, TARGET_SIZE);
-            const dataA = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+            ctxA.drawImage(imgA, offsetXA, offsetYA, sourceSizeA, sourceSizeA, 0, 0, sourceSizeA, sourceSizeA);
 
-            // Extract image B data
+            textureA = new THREE.CanvasTexture(canvasA);
+            textureA.minFilter = THREE.LinearFilter;
+            textureA.magFilter = THREE.LinearFilter;
+            textureA.wrapS = THREE.ClampToEdgeWrapping;
+            textureA.wrapT = THREE.ClampToEdgeWrapping;
+
+            // Create canvas for texture B
+            const canvasB = document.createElement('canvas');
             const sourceSizeB = Math.min(imgB.width, imgB.height);
+            canvasB.width = sourceSizeB;
+            canvasB.height = sourceSizeB;
+            const ctxB = canvasB.getContext('2d');
             const offsetXB = (imgB.width - sourceSizeB) / 2;
             const offsetYB = (imgB.height - sourceSizeB) / 2;
-            ctx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
-            ctx.drawImage(imgB, offsetXB, offsetYB, sourceSizeB, sourceSizeB, 0, 0, TARGET_SIZE, TARGET_SIZE);
-            const dataB = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+            ctxB.drawImage(imgB, offsetXB, offsetYB, sourceSizeB, sourceSizeB, 0, 0, sourceSizeB, sourceSizeB);
 
-            // === PARTICLE DATA (pure volumetric positions) ===
+            textureB = new THREE.CanvasTexture(canvasB);
+            textureB.minFilter = THREE.LinearFilter;
+            textureB.magFilter = THREE.LinearFilter;
+            textureB.wrapS = THREE.ClampToEdgeWrapping;
+            textureB.wrapT = THREE.ClampToEdgeWrapping;
+
+            // Get pixel data for black filtering (CPU side)
+            const dataA = ctxA.getImageData(0, 0, sourceSizeA, sourceSizeA).data;
+            const dataB = ctxB.getImageData(0, 0, sourceSizeB, sourceSizeB).data;
+
+            // === PARTICLE GEOMETRY (volumetric positions) ===
             const positions = [];
-            const colorsA = [];
-            const colorsB = [];
-
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
-            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
+            const thicknessSpread = TARGET_SIZE * scaleFactor * thickness;
 
             for (let y = 0; y < TARGET_SIZE; y += step) {
                 for (let x = 0; x < TARGET_SIZE; x += step) {
-                    const i = (y * TARGET_SIZE + x) * 4;
-                    const alphaA = dataA[i + 3];
-                    const alphaB = dataB[i + 3];
+                    // Sample from center of pixel for both images
+                    const sampleXA = Math.floor((x / TARGET_SIZE) * sourceSizeA);
+                    const sampleYA = Math.floor((y / TARGET_SIZE) * sourceSizeA);
+                    const iA = (sampleYA * sourceSizeA + sampleXA) * 4;
+
+                    const sampleXB = Math.floor((x / TARGET_SIZE) * sourceSizeB);
+                    const sampleYB = Math.floor((y / TARGET_SIZE) * sourceSizeB);
+                    const iB = (sampleYB * sourceSizeB + sampleXB) * 4;
+
+                    const alphaA = dataA[iA + 3] || 0;
+                    const alphaB = dataB[iB + 3] || 0;
 
                     if (alphaA > 30 || alphaB > 30) {
-                        const rA = dataA[i], gA = dataA[i+1], bA = dataA[i+2];
-                        const rB = dataB[i], gB = dataB[i+1], bB = dataB[i+2];
-
                         // Black filtering
-                        const maxColorA = Math.max(rA, gA, bA);
-                        const maxColorB = Math.max(rB, gB, bB);
+                        const maxColorA = Math.max(dataA[iA] || 0, dataA[iA+1] || 0, dataA[iA+2] || 0);
+                        const maxColorB = Math.max(dataB[iB] || 0, dataB[iB+1] || 0, dataB[iB+2] || 0);
                         if (hideBlack && maxColorA < blackThreshold && maxColorB < blackThreshold) {
                             continue;
                         }
 
-                        // Pure volumetric position (random depth)
+                        // Position: (x,y) from pixel, z controlled by thickness
                         const px = (x - halfSize) * scaleFactor;
                         const py = -(y - halfSize) * scaleFactor;
-                        const pz = (Math.random() - 0.5) * depthSpread;
+                        const pz = (Math.random() - 0.5) * thicknessSpread;
 
                         positions.push(px, py, pz);
-                        colorsA.push(rA / 255, gA / 255, bA / 255);
-                        colorsB.push(rB / 255, gB / 255, bB / 255);
                     }
                 }
             }
@@ -626,124 +630,107 @@
             // === CREATE SINGLE PARTICLE CLOUD ===
             geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            geometry.setAttribute('colorA', new THREE.Float32BufferAttribute(colorsA, 3));
-            geometry.setAttribute('colorB', new THREE.Float32BufferAttribute(colorsB, 3));
 
-            // === SHADER WITH ORTHOGONAL AXES ===
+            // === SHADER WITH UV PROJECTION PER AXIS ===
             const vertexShader = `
-                attribute vec3 colorA;
-                attribute vec3 colorB;
-                varying vec3 vColorA;
-                varying vec3 vColorB;
+                varying vec3 vLocalPos;
                 varying vec3 vWorldPos;
+                varying vec3 vViewDir;
 
                 void main() {
-                    vColorA = colorA;
-                    vColorB = colorB;
+                    // Local position normalized to cube space
+                    vLocalPos = position;
 
-                    // World position for axis-based weighting
+                    // World position
                     vec4 worldPos = modelMatrix * vec4(position, 1.0);
                     vWorldPos = worldPos.xyz;
 
+                    // View direction (world space)
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vViewDir = normalize(cameraPosition - worldPos.xyz);
+
                     gl_PointSize = ${pointSize.toFixed(2)};
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `;
 
-            // Fragment shader with dual orthogonal axes
+            // Fragment shader: UV projection + view-dependent weighting
             const fragmentShader = `
                 uniform sampler2D pointTexture;
-                uniform float axisStrength;
-                uniform float noiseAmount;
+                uniform sampler2D texA;
+                uniform sampler2D texB;
+                uniform float axisSharpness;
                 uniform int debugMode;
                 uniform float volumeSize;
-                varying vec3 vColorA;
-                varying vec3 vColorB;
+                varying vec3 vLocalPos;
                 varying vec3 vWorldPos;
-
-                // Simple hash for noise
-                float hash(vec3 p) {
-                    p = fract(p * 0.3183099 + 0.1);
-                    p *= 17.0;
-                    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-                }
-
-                // 3D noise
-                float noise3D(vec3 p) {
-                    vec3 i = floor(p);
-                    vec3 f = fract(p);
-                    f = f * f * (3.0 - 2.0 * f);
-
-                    return mix(
-                        mix(
-                            mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
-                            mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x),
-                            f.y
-                        ),
-                        mix(
-                            mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
-                            mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x),
-                            f.y
-                        ),
-                        f.z
-                    );
-                }
+                varying vec3 vViewDir;
 
                 void main() {
                     vec4 texColor = texture2D(pointTexture, gl_PointCoord);
                     if (texColor.a < 0.5) discard;
 
-                    // === ORTHOGONAL AXES WEIGHTS ===
-                    // Weight A: based on Z axis (depth, forward/backward)
-                    float depthInfluence = abs(vWorldPos.z) / volumeSize;
-                    depthInfluence = pow(depthInfluence, axisStrength);
+                    // === PROJECTION UV PAR AXE ===
+                    // Normalize local position to [-1, 1] cube space
+                    vec3 p = vLocalPos / volumeSize;
 
-                    // Weight B: based on X axis (lateral, left/right)
-                    float lateralInfluence = abs(vWorldPos.x) / volumeSize;
-                    lateralInfluence = pow(lateralInfluence, axisStrength);
+                    // uvA: projection sur plan XY (lecture face ±Z)
+                    vec2 uvA = vec2(p.x, p.y) * 0.5 + 0.5;
+                    uvA.y = 1.0 - uvA.y; // Flip Y for correct orientation
 
-                    // Light noise perturbation (prevents any planar artifacts)
-                    float noise = noise3D(vWorldPos * 0.005) * 2.0 - 1.0;
-                    noise *= noiseAmount;
+                    // uvB: projection sur plan ZY (lecture face ±X)
+                    vec2 uvB = vec2(p.z, p.y) * 0.5 + 0.5;
+                    uvB.y = 1.0 - uvB.y; // Flip Y for correct orientation
 
-                    // Apply noise to weights
-                    float weightA = clamp(depthInfluence + noise, 0.0, 1.0);
-                    float weightB = clamp(lateralInfluence - noise, 0.0, 1.0);
+                    // Sample textures
+                    vec3 colA = texture2D(texA, uvA).rgb;
+                    vec3 colB = texture2D(texB, uvB).rgb;
 
-                    // Normalize (non-exclusive combination)
-                    float totalWeight = weightA + weightB + 0.001;
-                    weightA /= totalWeight;
-                    weightB /= totalWeight;
+                    // === PONDÉRATION VIEW-DEPENDENT ===
+                    // Axes principaux en world space (assumant pas de rotation complexe)
+                    vec3 zAxisWorld = vec3(0.0, 0.0, 1.0); // Face ±Z
+                    vec3 xAxisWorld = vec3(1.0, 0.0, 0.0); // Face ±X
+
+                    // Poids basés sur alignement de la vue avec les axes
+                    // Plus la vue est alignée avec un axe, plus l'image de cette face est visible
+                    float wA = pow(abs(dot(vViewDir, zAxisWorld)), axisSharpness);
+                    float wB = pow(abs(dot(vViewDir, xAxisWorld)), axisSharpness);
+
+                    // Normalisation pour éviter division par zéro
+                    float totalWeight = wA + wB + 1e-5;
+                    wA /= totalWeight;
+                    wB /= totalWeight;
 
                     // === DEBUG MODES ===
                     if (debugMode == 1) {
-                        // Show Z axis influence (depth)
-                        gl_FragColor = vec4(vec3(weightA), 1.0);
+                        // Visualiser poids A (face ±Z)
+                        gl_FragColor = vec4(vec3(wA), 1.0);
                     } else if (debugMode == 2) {
-                        // Show X axis influence (lateral)
-                        gl_FragColor = vec4(vec3(weightB), 1.0);
+                        // Visualiser poids B (face ±X)
+                        gl_FragColor = vec4(vec3(wB), 1.0);
                     } else if (debugMode == 3) {
-                        // Combined view: Red=Z, Green=X
-                        gl_FragColor = vec4(weightA, weightB, 0.0, 1.0);
+                        // Combined: Rouge=wA, Vert=wB
+                        gl_FragColor = vec4(wA, wB, 0.0, 1.0);
                     } else {
-                        // Normal: combine images via independent weights
-                        vec3 finalColor = vColorA * weightA + vColorB * weightB;
+                        // Normal: combinaison weighted
+                        vec3 finalColor = wA * colA + wB * colB;
                         gl_FragColor = vec4(finalColor, 1.0);
                     }
                 }
             `;
 
             const shapeTexture = getShapeTexture(currentShape);
-            const volumeSize = TARGET_SIZE * scaleFactor * depthMultiplier * 0.5;
+            const volumeSize = TARGET_SIZE * scaleFactor * 0.5;
 
             material = new THREE.ShaderMaterial({
                 uniforms: {
                     pointTexture: { value: shapeTexture },
-                    axisStrength: { value: axisStrength },
-                    noiseAmount: { value: noiseAmount },
+                    texA: { value: textureA },
+                    texB: { value: textureB },
+                    axisSharpness: { value: axisSharpness },
                     debugMode: { value: debugMode },
-                    volumeSize: { value: volumeSize }
+                    volumeSize: { value: volumeSize },
+                    cameraPosition: { value: camera.position }
                 },
                 vertexShader: vertexShader,
                 fragmentShader: fragmentShader,
@@ -768,9 +755,8 @@
         function resetToDefaults() {
             document.getElementById('size').value = 1.0;
             document.getElementById('density').value = 7;
-            document.getElementById('depth').value = 1.0;
-            document.getElementById('axisStrength').value = 1.0;
-            document.getElementById('noiseAmount').value = 0.15;
+            document.getElementById('thickness').value = 1.0;
+            document.getElementById('axisSharpness').value = 3.0;
             document.getElementById('blackThreshold').value = 30;
             document.getElementById('hide-black').checked = false;
             document.getElementById('debug-mode').value = 0;
@@ -801,6 +787,12 @@
         // === ANIMATION LOOP ===
         function animate() {
             requestAnimationFrame(animate);
+
+            // Update camera position uniform for view-dependent weighting
+            if (material && material.uniforms.cameraPosition) {
+                material.uniforms.cameraPosition.value.copy(camera.position);
+            }
+
             renderer.render(scene, camera);
         }
 
