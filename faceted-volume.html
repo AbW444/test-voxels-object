@@ -336,38 +336,74 @@
                 }
             });
 
-            // Collect pixel positions and colors per face
-            const pixelData = [];  // Each entry: {u, v, px, py, pz, colors: {px, nx, py, ny, pz, nz}}
+            // Generate pixel cubes for each loaded face with proper orientation
+            const allPixelCubes = [];  // Each entry: {position, rotation, faceType, pixelColor}
 
-            // Use first loaded image to determine grid
-            const referenceData = facePixelData[Object.keys(facePixelData)[0]];
+            // Face transformations to orient each projection correctly
+            const faceTransforms = {
+                'pz': { axis: 'z', rotX: 0, rotY: 0 },           // Front: no rotation
+                'nz': { axis: 'z', rotX: 0, rotY: Math.PI },     // Back: 180° Y
+                'px': { axis: 'x', rotX: 0, rotY: Math.PI / 2 }, // Right: 90° Y
+                'nx': { axis: 'x', rotX: 0, rotY: -Math.PI / 2 },// Left: -90° Y
+                'py': { axis: 'y', rotX: -Math.PI / 2, rotY: 0 },// Top: -90° X
+                'ny': { axis: 'y', rotX: Math.PI / 2, rotY: 0 }  // Bottom: 90° X
+            };
 
-            for (let v = 0; v < TARGET_SIZE; v += step) {
-                for (let u = 0; u < TARGET_SIZE; u += step) {
-                    const i = (v * TARGET_SIZE + u) * 4;
-                    const alpha = referenceData[i + 3];
+            const faceOrder = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
+            const faceColorMap = { 'px': 0, 'nx': 1, 'py': 2, 'ny': 3, 'pz': 4, 'nz': 5 };
 
-                    if (alpha > 30) {
-                        const px = (u - halfSize) * scaleFactor;
-                        const py = -(v - halfSize) * scaleFactor;
-                        const pz = (Math.random() - 0.5) * depthSpread;
+            // Generate cubes for each loaded face
+            Object.entries(facePixelData).forEach(([faceName, data]) => {
+                const transform = faceTransforms[faceName];
 
-                        const colors = {};
+                for (let v = 0; v < TARGET_SIZE; v += step) {
+                    for (let u = 0; u < TARGET_SIZE; u += step) {
+                        const i = (v * TARGET_SIZE + u) * 4;
+                        const alpha = data[i + 3];
 
-                        // Get color from each face's image at this UV position
-                        Object.entries(facePixelData).forEach(([face, data]) => {
-                            const idx = (v * TARGET_SIZE + u) * 4;
-                            colors[face] = {
-                                r: data[idx] / 255,
-                                g: data[idx + 1] / 255,
-                                b: data[idx + 2] / 255
+                        if (alpha > 30) {
+                            // Base grid position (in 2D)
+                            const pu = (u - halfSize) * scaleFactor;
+                            const pv = -(v - halfSize) * scaleFactor;
+                            const depth = (Math.random() - 0.5) * depthSpread;
+
+                            // Transform position based on face orientation
+                            let px, py, pz;
+                            if (transform.axis === 'z') {
+                                // +Z/-Z faces: XY grid, vary Z
+                                px = pu;
+                                py = pv;
+                                pz = depth;
+                            } else if (transform.axis === 'x') {
+                                // +X/-X faces: YZ grid, vary X
+                                px = depth;
+                                py = pv;
+                                pz = pu;
+                            } else if (transform.axis === 'y') {
+                                // +Y/-Y faces: XZ grid, vary Y
+                                px = pu;
+                                py = depth;
+                                pz = pv;
+                            }
+
+                            // Pixel color for this face
+                            const pixelColor = {
+                                r: data[i] / 255,
+                                g: data[i + 1] / 255,
+                                b: data[i + 2] / 255
                             };
-                        });
 
-                        pixelData.push({ u, v, px, py, pz, colors });
+                            allPixelCubes.push({
+                                position: { x: px, y: py, z: pz },
+                                rotation: { x: transform.rotX, y: transform.rotY },
+                                faceType: faceName,
+                                faceIndex: faceColorMap[faceName],
+                                pixelColor: pixelColor
+                            });
+                        }
                     }
                 }
-            }
+            });
 
             // Create geometry with face index attribute
             const geometry = new THREE.BoxGeometry(cubeSize * 3, cubeSize * 3, cubeSize * 3);
@@ -386,45 +422,32 @@
 
             geometry.setAttribute('faceIndex', new THREE.BufferAttribute(faceIndices, 1));
 
-            // Create instanced attributes for face colors (6 separate vec3 attributes)
-            const count = pixelData.length;
-            const faceOrder = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
-
-            // Create 6 separate color arrays
-            const faceColorArrays = [];
-            for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
-                faceColorArrays.push(new Float32Array(count * 3));
-            }
+            // Create instanced attributes for pixel color and active face
+            const count = allPixelCubes.length;
+            const pixelColors = new Float32Array(count * 3);
+            const activeFaces = new Float32Array(count);
 
             for (let i = 0; i < count; i++) {
-                const pixel = pixelData[i];
+                const cube = allPixelCubes[i];
 
-                for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
-                    const faceName = faceOrder[faceIdx];
-                    const color = pixel.colors[faceName] || { r: 0.1, g: 0.1, b: 0.1 };
+                // Store pixel color
+                pixelColors[i * 3] = cube.pixelColor.r;
+                pixelColors[i * 3 + 1] = cube.pixelColor.g;
+                pixelColors[i * 3 + 2] = cube.pixelColor.b;
 
-                    const baseIdx = i * 3;
-                    faceColorArrays[faceIdx][baseIdx] = color.r;
-                    faceColorArrays[faceIdx][baseIdx + 1] = color.g;
-                    faceColorArrays[faceIdx][baseIdx + 2] = color.b;
-                }
+                // Store which face should display this color
+                activeFaces[i] = cube.faceIndex;
             }
 
-            // Add 6 instanced color attributes
-            for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
-                geometry.setAttribute(`faceColor${faceIdx}`, new THREE.InstancedBufferAttribute(faceColorArrays[faceIdx], 3));
-            }
+            geometry.setAttribute('pixelColor', new THREE.InstancedBufferAttribute(pixelColors, 3));
+            geometry.setAttribute('activeFace', new THREE.InstancedBufferAttribute(activeFaces, 1));
 
             // Custom shader material
             const material = new THREE.ShaderMaterial({
                 vertexShader: `
                     attribute float faceIndex;
-                    attribute vec3 faceColor0;
-                    attribute vec3 faceColor1;
-                    attribute vec3 faceColor2;
-                    attribute vec3 faceColor3;
-                    attribute vec3 faceColor4;
-                    attribute vec3 faceColor5;
+                    attribute vec3 pixelColor;
+                    attribute float activeFace;
 
                     varying vec3 vColor;
                     varying vec3 vNormal;
@@ -432,14 +455,15 @@
                     void main() {
                         vNormal = normalize(normalMatrix * normal);
 
-                        // Select color based on face index
-                        int idx = int(faceIndex);
-                        if (idx == 0) vColor = faceColor0;
-                        else if (idx == 1) vColor = faceColor1;
-                        else if (idx == 2) vColor = faceColor2;
-                        else if (idx == 3) vColor = faceColor3;
-                        else if (idx == 4) vColor = faceColor4;
-                        else vColor = faceColor5;
+                        // Display pixel color only on active face, dark on others
+                        int currentFace = int(faceIndex);
+                        int active = int(activeFace);
+
+                        if (currentFace == active) {
+                            vColor = pixelColor;
+                        } else {
+                            vColor = vec3(0.05, 0.05, 0.05);  // Dark for non-active faces
+                        }
 
                         vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
                         gl_Position = projectionMatrix * mvPosition;
@@ -465,17 +489,28 @@
             particleVolume = new THREE.InstancedMesh(geometry, material, count);
 
             const matrix = new THREE.Matrix4();
+            const quaternion = new THREE.Quaternion();
+            const position = new THREE.Vector3();
+            const scale = new THREE.Vector3(1, 1, 1);
 
             for (let i = 0; i < count; i++) {
-                const pixel = pixelData[i];
-                matrix.setPosition(pixel.px, pixel.py, pixel.pz);
+                const cube = allPixelCubes[i];
+
+                // Set position
+                position.set(cube.position.x, cube.position.y, cube.position.z);
+
+                // Set rotation
+                quaternion.setFromEuler(new THREE.Euler(cube.rotation.x, cube.rotation.y, 0, 'XYZ'));
+
+                // Compose matrix
+                matrix.compose(position, quaternion, scale);
                 particleVolume.setMatrixAt(i, matrix);
             }
 
             particleVolume.instanceMatrix.needsUpdate = true;
             scene.add(particleVolume);
 
-            console.log(`Generated ${count} pixel cubes`);
+            console.log(`Generated ${count} pixel cubes from ${Object.keys(facePixelData).length} faces`);
         }
 
         // === MOUSE CONTROLS ===
