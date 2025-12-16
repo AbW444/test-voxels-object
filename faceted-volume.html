@@ -419,13 +419,7 @@
             if (particleVolume) {
                 scene.remove(particleVolume);
                 if (particleVolume.geometry) particleVolume.geometry.dispose();
-                if (particleVolume.material) {
-                    if (Array.isArray(particleVolume.material)) {
-                        particleVolume.material.forEach(m => m.dispose());
-                    } else {
-                        particleVolume.material.dispose();
-                    }
-                }
+                if (particleVolume.material) particleVolume.material.dispose();
             }
 
             // Read parameters
@@ -437,9 +431,8 @@
             const TARGET_SIZE = 512;
             const step = Math.max(1, Math.floor(20 / density));
 
-            // Collect all unique pixels from all loaded images
-            const pixelSet = new Set();
-            const pixelData = {};
+            // Process all face images and extract pixel data
+            const facePixelData = {};
 
             Object.entries(faceImages).forEach(([face, img]) => {
                 if (!img) return;
@@ -454,80 +447,131 @@
                 const offsetY = (img.height - sourceSize) / 2;
                 ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
 
-                const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
-                const data = imageData.data;
+                facePixelData[face] = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+            });
 
+            // Collect unique pixel positions from all faces
+            const pixelSet = new Set();
+            Object.entries(facePixelData).forEach(([face, data]) => {
                 for (let y = 0; y < TARGET_SIZE; y += step) {
                     for (let x = 0; x < TARGET_SIZE; x += step) {
                         const i = (y * TARGET_SIZE + x) * 4;
                         const alpha = data[i + 3];
-
                         if (alpha > 30) {
-                            const key = `${x},${y}`;
-                            pixelSet.add(key);
-                            if (!pixelData[key]) pixelData[key] = {};
+                            pixelSet.add(`${x},${y}`);
                         }
                     }
                 }
             });
 
-            // Create instanced mesh for cube particles
-            const positions = Array.from(pixelSet).map(key => {
-                const [x, y] = key.split(',').map(Number);
-                return { x, y };
-            });
-
-            const count = positions.length;
-            const cubeGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-
-            // Create materials for each face
-            const materials = [
-                createFaceMaterial('px'), // right
-                createFaceMaterial('nx'), // left
-                createFaceMaterial('py'), // top
-                createFaceMaterial('ny'), // bottom
-                createFaceMaterial('pz'), // front
-                createFaceMaterial('nz')  // back
-            ];
-
-            particleVolume = new THREE.InstancedMesh(cubeGeometry, materials, count);
-            particleVolume.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            // Build particle data with per-face colors
+            const positions = [];
+            const colorsPX = [], colorsNX = [];
+            const colorsPY = [], colorsNY = [];
+            const colorsPZ = [], colorsNZ = [];
 
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
             const depthSpread = TARGET_SIZE * scaleFactor * volumeDepth;
 
-            const matrix = new THREE.Matrix4();
-            for (let i = 0; i < count; i++) {
-                const { x, y } = positions[i];
+            Array.from(pixelSet).forEach(key => {
+                const [x, y] = key.split(',').map(Number);
+
+                // Position
                 const px = (x - halfSize) * scaleFactor;
                 const py = -(y - halfSize) * scaleFactor;
                 const pz = (Math.random() - 0.5) * depthSpread;
+                positions.push(px, py, pz);
 
-                matrix.setPosition(px, py, pz);
+                // Extract pixel color for each face
+                const i = (y * TARGET_SIZE + x) * 4;
+
+                // Helper to get color or default gray
+                const getColor = (face) => {
+                    const data = facePixelData[face];
+                    if (data && data[i + 3] > 30) {
+                        return [data[i] / 255, data[i+1] / 255, data[i+2] / 255];
+                    }
+                    return [0.2, 0.2, 0.2]; // default gray
+                };
+
+                const cPX = getColor('px'); colorsPX.push(...cPX);
+                const cNX = getColor('nx'); colorsNX.push(...cNX);
+                const cPY = getColor('py'); colorsPY.push(...cPY);
+                const cNY = getColor('ny'); colorsNY.push(...cNY);
+                const cPZ = getColor('pz'); colorsPZ.push(...cPZ);
+                const cNZ = getColor('nz'); colorsNZ.push(...cNZ);
+            });
+
+            const count = positions.length / 3;
+
+            // Create custom geometry with per-face color attributes
+            const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+
+            // Custom shader to handle per-instance face colors
+            const material = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute vec3 colorPX;
+                    attribute vec3 colorNX;
+                    attribute vec3 colorPY;
+                    attribute vec3 colorNY;
+                    attribute vec3 colorPZ;
+                    attribute vec3 colorNZ;
+
+                    varying vec3 vColor;
+                    varying vec3 vNormal;
+
+                    void main() {
+                        vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+                        vNormal = normalize((modelMatrix * instanceMatrix * vec4(normal, 0.0)).xyz);
+
+                        // Determine which face we're on based on normal
+                        vec3 absNormal = abs(vNormal);
+                        if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
+                            vColor = vNormal.x > 0.0 ? colorPX : colorNX;
+                        } else if (absNormal.y > absNormal.x && absNormal.y > absNormal.z) {
+                            vColor = vNormal.y > 0.0 ? colorPY : colorNY;
+                        } else {
+                            vColor = vNormal.z > 0.0 ? colorPZ : colorNZ;
+                        }
+
+                        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    varying vec3 vNormal;
+
+                    void main() {
+                        // Simple lighting
+                        vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+                        float diffuse = max(dot(vNormal, lightDir), 0.3);
+
+                        gl_FragColor = vec4(vColor * diffuse, 1.0);
+                    }
+                `
+            });
+
+            particleVolume = new THREE.InstancedMesh(geometry, material, count);
+            particleVolume.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+            // Set per-instance face colors
+            geometry.setAttribute('colorPX', new THREE.InstancedBufferAttribute(new Float32Array(colorsPX), 3));
+            geometry.setAttribute('colorNX', new THREE.InstancedBufferAttribute(new Float32Array(colorsNX), 3));
+            geometry.setAttribute('colorPY', new THREE.InstancedBufferAttribute(new Float32Array(colorsPY), 3));
+            geometry.setAttribute('colorNY', new THREE.InstancedBufferAttribute(new Float32Array(colorsNY), 3));
+            geometry.setAttribute('colorPZ', new THREE.InstancedBufferAttribute(new Float32Array(colorsPZ), 3));
+            geometry.setAttribute('colorNZ', new THREE.InstancedBufferAttribute(new Float32Array(colorsNZ), 3));
+
+            // Set instance positions
+            const matrix = new THREE.Matrix4();
+            for (let i = 0; i < count; i++) {
+                matrix.setPosition(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
                 particleVolume.setMatrixAt(i, matrix);
             }
 
             particleVolume.instanceMatrix.needsUpdate = true;
             scene.add(particleVolume);
-        }
-
-        function createFaceMaterial(face) {
-            const texture = faceTextures[face];
-            if (texture) {
-                return new THREE.MeshStandardMaterial({
-                    map: texture,
-                    roughness: 0.7,
-                    metalness: 0.2
-                });
-            } else {
-                // Default gray for faces without image
-                return new THREE.MeshStandardMaterial({
-                    color: 0x333333,
-                    roughness: 0.8,
-                    metalness: 0.1
-                });
-            }
         }
 
         // === MOUSE CONTROLS ===
