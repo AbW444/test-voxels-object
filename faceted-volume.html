@@ -555,25 +555,31 @@
 
             // Custom shader material
             const material = new THREE.ShaderMaterial({
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: true,
                 vertexShader: `
                     attribute float faceIndex;
                     attribute vec3 pixelColor;
                     attribute float activeFace;
 
                     varying vec3 vColor;
+                    varying float vIsActive;
                     varying vec3 vNormal;
 
                     void main() {
                         vNormal = normalize(normalMatrix * normal);
 
-                        // Display pixel color only on active face, dark on others
+                        // Check if this is the active face
                         int currentFace = int(faceIndex);
                         int activeFaceIdx = int(activeFace);
 
                         if (currentFace == activeFaceIdx) {
                             vColor = pixelColor;
+                            vIsActive = 1.0;
                         } else {
-                            vColor = vec3(0.05, 0.05, 0.05);  // Dark for non-active faces
+                            vColor = vec3(0.0);
+                            vIsActive = 0.0;  // Mark as transparent
                         }
 
                         vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
@@ -582,10 +588,16 @@
                 `,
                 fragmentShader: `
                     varying vec3 vColor;
+                    varying float vIsActive;
                     varying vec3 vNormal;
 
                     void main() {
-                        // Simple lighting
+                        // Transparent for non-active faces
+                        if (vIsActive < 0.5) {
+                            discard;  // Completely transparent
+                        }
+
+                        // Simple lighting for active faces
                         vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
                         float diff = max(dot(vNormal, lightDir), 0.0);
                         vec3 ambient = vec3(0.6);
