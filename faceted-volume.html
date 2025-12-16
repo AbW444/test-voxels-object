@@ -340,17 +340,15 @@
             const allPixelCubes = [];  // Each entry: {position, rotation, faceType, pixelColor}
 
             // Face transformations to orient each projection correctly
+            // BoxGeometry faces: 0:+X(right), 1:-X(left), 2:+Y(top), 3:-Y(bottom), 4:+Z(front), 5:-Z(back)
             const faceTransforms = {
-                'pz': { axis: 'z', rotX: 0, rotY: 0 },           // Front: no rotation
-                'nz': { axis: 'z', rotX: 0, rotY: Math.PI },     // Back: 180° Y
-                'px': { axis: 'x', rotX: 0, rotY: Math.PI / 2 }, // Right: 90° Y
-                'nx': { axis: 'x', rotX: 0, rotY: -Math.PI / 2 },// Left: -90° Y
-                'py': { axis: 'y', rotX: -Math.PI / 2, rotY: 0 },// Top: -90° X
-                'ny': { axis: 'y', rotX: Math.PI / 2, rotY: 0 }  // Bottom: 90° X
+                'pz': { axis: 'z', faceIdx: 4 },  // Front: display on +Z face
+                'nz': { axis: 'z', faceIdx: 5 },  // Back: display on -Z face
+                'px': { axis: 'x', faceIdx: 0 },  // Right: display on +X face
+                'nx': { axis: 'x', faceIdx: 1 },  // Left: display on -X face
+                'py': { axis: 'y', faceIdx: 2 },  // Top: display on +Y face
+                'ny': { axis: 'y', faceIdx: 3 }   // Bottom: display on -Y face
             };
-
-            const faceOrder = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
-            const faceColorMap = { 'px': 0, 'nx': 1, 'py': 2, 'ny': 3, 'pz': 4, 'nz': 5 };
 
             // Generate cubes for each loaded face
             Object.entries(facePixelData).forEach(([faceName, data]) => {
@@ -395,9 +393,8 @@
 
                             allPixelCubes.push({
                                 position: { x: px, y: py, z: pz },
-                                rotation: { x: transform.rotX, y: transform.rotY },
                                 faceType: faceName,
-                                faceIndex: faceColorMap[faceName],
+                                faceIndex: transform.faceIdx,
                                 pixelColor: pixelColor
                             });
                         }
@@ -489,21 +486,12 @@
             particleVolume = new THREE.InstancedMesh(geometry, material, count);
 
             const matrix = new THREE.Matrix4();
-            const quaternion = new THREE.Quaternion();
-            const position = new THREE.Vector3();
-            const scale = new THREE.Vector3(1, 1, 1);
 
             for (let i = 0; i < count; i++) {
                 const cube = allPixelCubes[i];
 
-                // Set position
-                position.set(cube.position.x, cube.position.y, cube.position.z);
-
-                // Set rotation
-                quaternion.setFromEuler(new THREE.Euler(cube.rotation.x, cube.rotation.y, 0, 'XYZ'));
-
-                // Compose matrix
-                matrix.compose(position, quaternion, scale);
+                // Set position only (no rotation needed)
+                matrix.setPosition(cube.position.x, cube.position.y, cube.position.z);
                 particleVolume.setMatrixAt(i, matrix);
             }
 
