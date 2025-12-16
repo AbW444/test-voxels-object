@@ -386,11 +386,15 @@
 
             geometry.setAttribute('faceIndex', new THREE.BufferAttribute(faceIndices, 1));
 
-            // Create instanced attribute for face colors (6 colors × 3 channels = 18 floats per instance)
+            // Create instanced attributes for face colors (6 separate vec3 attributes)
             const count = pixelData.length;
-            const faceColorsArray = new Float32Array(count * 18);
-
             const faceOrder = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
+
+            // Create 6 separate color arrays
+            const faceColorArrays = [];
+            for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
+                faceColorArrays.push(new Float32Array(count * 3));
+            }
 
             for (let i = 0; i < count; i++) {
                 const pixel = pixelData[i];
@@ -399,20 +403,28 @@
                     const faceName = faceOrder[faceIdx];
                     const color = pixel.colors[faceName] || { r: 0.1, g: 0.1, b: 0.1 };
 
-                    const baseIdx = i * 18 + faceIdx * 3;
-                    faceColorsArray[baseIdx] = color.r;
-                    faceColorsArray[baseIdx + 1] = color.g;
-                    faceColorsArray[baseIdx + 2] = color.b;
+                    const baseIdx = i * 3;
+                    faceColorArrays[faceIdx][baseIdx] = color.r;
+                    faceColorArrays[faceIdx][baseIdx + 1] = color.g;
+                    faceColorArrays[faceIdx][baseIdx + 2] = color.b;
                 }
             }
 
-            geometry.setAttribute('faceColors', new THREE.InstancedBufferAttribute(faceColorsArray, 18));
+            // Add 6 instanced color attributes
+            for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
+                geometry.setAttribute(`faceColor${faceIdx}`, new THREE.InstancedBufferAttribute(faceColorArrays[faceIdx], 3));
+            }
 
             // Custom shader material
             const material = new THREE.ShaderMaterial({
                 vertexShader: `
                     attribute float faceIndex;
-                    attribute vec3 faceColors[6];
+                    attribute vec3 faceColor0;
+                    attribute vec3 faceColor1;
+                    attribute vec3 faceColor2;
+                    attribute vec3 faceColor3;
+                    attribute vec3 faceColor4;
+                    attribute vec3 faceColor5;
 
                     varying vec3 vColor;
                     varying vec3 vNormal;
@@ -422,7 +434,12 @@
 
                         // Select color based on face index
                         int idx = int(faceIndex);
-                        vColor = faceColors[idx];
+                        if (idx == 0) vColor = faceColor0;
+                        else if (idx == 1) vColor = faceColor1;
+                        else if (idx == 2) vColor = faceColor2;
+                        else if (idx == 3) vColor = faceColor3;
+                        else if (idx == 4) vColor = faceColor4;
+                        else vColor = faceColor5;
 
                         vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
                         gl_Position = projectionMatrix * mvPosition;
