@@ -520,32 +520,40 @@
 
                     varying vec3 vColor;
                     varying vec3 vNormal;
+                    varying vec3 vWorldNormal;
 
                     void main() {
-                        vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
-                        vNormal = normalize((modelMatrix * instanceMatrix * vec4(normal, 0.0)).xyz);
+                        // Use LOCAL normal to determine face (unaffected by rotation)
+                        // This ensures face-to-color mapping stays consistent
+                        vec3 localNormal = normal;
 
-                        // Determine which face we're on based on normal
-                        vec3 absNormal = abs(vNormal);
+                        // Determine which face based on LOCAL normal
+                        vec3 absNormal = abs(localNormal);
                         if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
-                            vColor = vNormal.x > 0.0 ? colorPX : colorNX;
+                            // X face
+                            vColor = localNormal.x > 0.0 ? colorPX : colorNX;
                         } else if (absNormal.y > absNormal.x && absNormal.y > absNormal.z) {
-                            vColor = vNormal.y > 0.0 ? colorPY : colorNY;
+                            // Y face
+                            vColor = localNormal.y > 0.0 ? colorPY : colorNY;
                         } else {
-                            vColor = vNormal.z > 0.0 ? colorPZ : colorNZ;
+                            // Z face
+                            vColor = localNormal.z > 0.0 ? colorPZ : colorNZ;
                         }
+
+                        // Transform normal to world space for lighting only
+                        vWorldNormal = normalize((modelMatrix * instanceMatrix * vec4(normal, 0.0)).xyz);
 
                         gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
                     }
                 `,
                 fragmentShader: `
                     varying vec3 vColor;
-                    varying vec3 vNormal;
+                    varying vec3 vWorldNormal;
 
                     void main() {
-                        // Simple lighting
+                        // Simple lighting using world-space normal
                         vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
-                        float diffuse = max(dot(vNormal, lightDir), 0.3);
+                        float diffuse = max(dot(vWorldNormal, lightDir), 0.3);
 
                         gl_FragColor = vec4(vColor * diffuse, 1.0);
                     }
