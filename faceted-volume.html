@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Faceted Volume - Prototype 1.1</title>
-    <!-- Version 1.1: Face-oriented frontale projection -->
+    <!-- Version 1.1: 6-face projection with pixel-cube particles -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -11,22 +11,28 @@
 
         #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 
-        /* Cube selector panel - LEFT SIDE */
-        #cube-selector-panel { position: fixed; top: 50%; left: 20px; transform: translateY(-50%);
-                               z-index: 100; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
-                               padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
-                               width: 280px; }
+        /* Title */
+        #title-link { position: fixed; top: 20px; left: 20px; z-index: 100;
+                     text-decoration: none; color: #fff; transition: opacity 0.2s; }
+        #title-link:hover { opacity: 1 !important; }
+        #title { font-size: 18px; font-weight: 600; opacity: 0.7;
+                text-transform: uppercase; letter-spacing: 2px; }
+        #subtitle { font-size: 11px; opacity: 0.5; margin-top: 4px; letter-spacing: 0.5px; }
 
-        #cube-selector-panel h3 { font-size: 12px; font-weight: 600; margin-bottom: 16px;
-                                   text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;
-                                   text-align: center; }
+        /* Face Selector Panel - LEFT */
+        #face-panel { position: fixed; top: 100px; left: 20px; z-index: 50;
+                     background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+                     padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+                     width: 280px; max-height: calc(100vh - 140px); overflow-y: auto; }
 
-        #reference-cube-container { width: 200px; height: 200px; margin: 0 auto 20px; }
+        #face-panel h3 { font-size: 12px; font-weight: 600; margin-bottom: 16px;
+                        text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;
+                        text-align: center; }
 
         .face-item { display: flex; align-items: center; gap: 12px; padding: 8px;
-                     background: rgba(255,255,255,0.05); border-radius: 6px;
-                     margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
-                     border: 2px solid transparent; }
+                    background: rgba(255,255,255,0.05); border-radius: 6px;
+                    margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+                    border: 2px solid transparent; }
         .face-item:hover { background: rgba(255,255,255,0.1); }
         .face-item.selected { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.15); }
 
@@ -39,19 +45,20 @@
         .face-preview img { width: 100%; height: 100%; object-fit: cover; }
         .face-preview.loaded { opacity: 1; }
 
-        #load-face-btn { display: block; width: 100%; margin: 12px 0; padding: 12px;
-                        background: rgba(255,255,255,0.1); color: #fff;
-                        border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-                        cursor: pointer; font-size: 11px; font-weight: 600;
-                        transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
-        #load-face-btn:hover { background: rgba(255,255,255,0.2); }
-        #load-face-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        button { display: block; width: 100%; margin: 12px 0; padding: 12px;
+                background: rgba(255,255,255,0.1); color: #fff;
+                border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+                cursor: pointer; font-size: 11px; font-weight: 600;
+                transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+        button:hover { background: rgba(255,255,255,0.2); }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        /* Controls panel - RIGHT SIDE */
-        #controls-panel { position: fixed; bottom: 20px; right: 20px; z-index: 100;
-                         background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
-                         padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
-                         max-width: 320px; }
+        /* Controls Panel - RIGHT */
+        #controls { position: fixed; bottom: 20px; right: 20px; z-index: 50;
+                   background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+                   padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+                   width: 320px; display: none; }
+        #controls.visible { display: block; }
 
         .param-row { margin-bottom: 16px; }
         .param-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -67,43 +74,21 @@
         .slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%;
                                    background: #fff; cursor: pointer; border: none; }
 
-        button { display: block; width: 100%; margin: 8px 0; padding: 10px;
-                background: rgba(255,255,255,0.1); color: #fff;
-                border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
-                cursor: pointer; font-size: 11px; font-weight: 600;
-                transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
-        button:hover { background: rgba(255,255,255,0.2); }
-
-        #title-link { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100;
-                     text-decoration: none; color: #fff; text-align: center; }
-        #title { font-size: 18px; font-weight: 600; opacity: 0.7;
-                text-transform: uppercase; letter-spacing: 2px; }
-        #subtitle { font-size: 11px; opacity: 0.5; margin-top: 4px; letter-spacing: 0.5px; }
-
-        /* Version selector */
-        #version-selector { position: fixed; bottom: 20px; left: 20px; z-index: 100;
-                           background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
-                           padding: 8px 12px; border-radius: 6px;
-                           border: 1px solid rgba(255,255,255,0.2);
-                           font-size: 10px; cursor: pointer; }
-
-        .hidden { display: none !important; }
         input[type="file"] { display: none; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <a href="index.html" id="title-link">
         <div id="title">Volumetric Particles</div>
-        <div id="subtitle">Volume à faces — Projection frontale par face</div>
+        <div id="subtitle">Volume à faces — Projection frontale</div>
     </a>
 
     <div id="canvas"></div>
 
-    <!-- Cube Face Selector Panel - LEFT -->
-    <div id="cube-selector-panel">
+    <!-- Face Selector Panel -->
+    <div id="face-panel">
         <h3>⬢ Cube Faces</h3>
-
-        <div id="reference-cube-container"></div>
 
         <div class="face-item" data-face="px">
             <div class="face-color" style="background: #ff4444;"></div>
@@ -141,21 +126,21 @@
             <div class="face-preview" id="preview-nz">—</div>
         </div>
 
-        <button id="load-face-btn" disabled>Load Image for Face</button>
-        <input type="file" id="face-image-input" accept="image/*">
+        <button id="load-btn" disabled>Load Image for Face</button>
+        <input type="file" id="file-input" accept="image/*">
 
         <button id="generate-btn" disabled>Generate Volume</button>
-        <button id="clear-all-btn">Clear All Faces</button>
+        <button id="clear-btn">Clear All</button>
     </div>
 
-    <!-- Controls Panel - RIGHT -->
-    <div id="controls-panel" class="hidden">
+    <!-- Controls Panel -->
+    <div id="controls">
         <div class="param-row">
             <div class="param-header">
                 <label>Cube Size</label>
-                <span class="param-value" id="val-cubeSize">2.0</span>
+                <span class="param-value" id="val-size">2.0</span>
             </div>
-            <input type="range" class="slider" id="cubeSize" min="0.5" max="5.0" step="0.1" value="2.0">
+            <input type="range" class="slider" id="size" min="0.5" max="5" step="0.1" value="2.0">
         </div>
 
         <div class="param-row">
@@ -166,56 +151,41 @@
             <input type="range" class="slider" id="density" min="1" max="20" step="1" value="10">
         </div>
 
-        <div class="param-row">
-            <div class="param-header">
-                <label>Volume Depth</label>
-                <span class="param-value" id="val-depth">1.0X</span>
-            </div>
-            <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
-        </div>
-
-        <button onclick="applySettings()">Apply</button>
+        <button onclick="applySettings()">Apply Settings</button>
         <button onclick="resetCamera()">Reset Camera</button>
-    </div>
-
-    <!-- Version Selector -->
-    <div id="version-selector">
-        <span>v<span id="current-version">1.1</span></span>
     </div>
 
     <script src="three.min.js"></script>
     <script>
         // === GLOBAL STATE ===
-        const VERSION = "1.1";
-
-        let scene, camera, renderer;
-        let mainScene, referenceScene;
-        let particleVolume, referenceCube;
-
-        let cubeSize = 2.0;
-        let density = 10;
-        let volumeDepth = 1.0;
-
+        let scene, camera, renderer, particleVolume;
         let selectedFace = null;
         let faceImages = {
             px: null, nx: null,
             py: null, ny: null,
             pz: null, nz: null
         };
-        let faceTextures = {
-            px: null, nx: null,
-            py: null, ny: null,
-            pz: null, nz: null
+
+        let cubeSize = 2.0;
+        let density = 10;
+
+        // Face rotations for frontale orientation
+        const FACE_ROTATIONS = {
+            'pz': { axis: 'y', angle: 0 },           // Front: no rotation
+            'nz': { axis: 'y', angle: Math.PI },     // Back: 180° on Y
+            'px': { axis: 'y', angle: -Math.PI/2 },  // Right: -90° on Y
+            'nx': { axis: 'y', angle: Math.PI/2 },   // Left: +90° on Y
+            'py': { axis: 'x', angle: -Math.PI/2 },  // Top: -90° on X
+            'ny': { axis: 'x', angle: Math.PI/2 }    // Bottom: +90° on X
         };
 
-        // === THREE.JS SETUP ===
+        // === INIT ===
         function init() {
             if (typeof THREE === 'undefined') {
                 alert('THREE.js failed to load.');
                 return;
             }
 
-            // Main scene
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x000000);
 
@@ -225,7 +195,6 @@
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.autoClear = false;
             document.getElementById('canvas').appendChild(renderer.domElement);
 
             // Lighting
@@ -240,106 +209,50 @@
             dirLight2.position.set(-1, -1, -0.5);
             scene.add(dirLight2);
 
-            // Reference cube scene (for UI)
-            initReferenceCube();
-
             // Mouse controls
             setupMouseControls();
 
-            // UI event listeners
-            setupUIListeners();
+            // UI listeners
+            setupUI();
 
             animate();
         }
 
-        // === REFERENCE CUBE (in UI panel) ===
-        function initReferenceCube() {
-            referenceScene = new THREE.Scene();
-            referenceScene.background = new THREE.Color(0x1a1a1a);
-
-            const refCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-            refCamera.position.set(3, 2, 3);
-            refCamera.lookAt(0, 0, 0);
-
-            const refRenderer = new THREE.WebGLRenderer({ antialias: true });
-            refRenderer.setSize(200, 200);
-            document.getElementById('reference-cube-container').appendChild(refRenderer.domElement);
-
-            // Create reference cube with colored faces
-            const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
-            const materials = [
-                new THREE.MeshBasicMaterial({ color: 0xff4444 }), // +X (right) - red
-                new THREE.MeshBasicMaterial({ color: 0xff8844 }), // -X (left) - orange
-                new THREE.MeshBasicMaterial({ color: 0x44ff44 }), // +Y (top) - green
-                new THREE.MeshBasicMaterial({ color: 0x44ff88 }), // -Y (bottom) - light green
-                new THREE.MeshBasicMaterial({ color: 0x4444ff }), // +Z (front) - blue
-                new THREE.MeshBasicMaterial({ color: 0x8844ff })  // -Z (back) - purple
-            ];
-
-            referenceCube = new THREE.Mesh(geometry, materials);
-            referenceScene.add(referenceCube);
-
-            // Add edges
-            const edges = new THREE.EdgesGeometry(geometry);
-            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.3, transparent: true });
-            const wireframe = new THREE.LineSegments(edges, lineMaterial);
-            referenceCube.add(wireframe);
-
-            // Animate reference cube
-            function animateRef() {
-                requestAnimationFrame(animateRef);
-                referenceCube.rotation.y += 0.005;
-                referenceCube.rotation.x += 0.002;
-                refRenderer.render(referenceScene, refCamera);
-            }
-            animateRef();
-
-            // Make reference cube clickable for face selection
-            refRenderer.domElement.style.cursor = 'pointer';
-            refRenderer.domElement.addEventListener('click', () => {
-                // For now, faces are selected via the list
-                // Could add raycasting here for direct cube clicking
-            });
-        }
-
-        // === UI LISTENERS ===
-        function setupUIListeners() {
-            // Face item selection
+        // === UI SETUP ===
+        function setupUI() {
+            // Face selection
             document.querySelectorAll('.face-item').forEach(item => {
                 item.addEventListener('click', function() {
                     document.querySelectorAll('.face-item').forEach(i => i.classList.remove('selected'));
                     this.classList.add('selected');
                     selectedFace = this.dataset.face;
-                    document.getElementById('load-face-btn').disabled = false;
+                    document.getElementById('load-btn').disabled = false;
                 });
             });
 
-            // Load image for selected face
-            document.getElementById('load-face-btn').addEventListener('click', () => {
+            // Load image button
+            document.getElementById('load-btn').addEventListener('click', () => {
                 if (selectedFace) {
-                    document.getElementById('face-image-input').click();
+                    document.getElementById('file-input').click();
                 }
             });
 
-            document.getElementById('face-image-input').addEventListener('change', (e) => {
+            // File input
+            document.getElementById('file-input').addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (file && file.type.startsWith('image/') && selectedFace) {
                     loadImageForFace(file, selectedFace);
                 }
             });
 
-            // Generate volume button
+            // Generate button
             document.getElementById('generate-btn').addEventListener('click', generateVolume);
 
-            // Clear all faces
-            document.getElementById('clear-all-btn').addEventListener('click', () => {
+            // Clear button
+            document.getElementById('clear-btn').addEventListener('click', () => {
                 if (confirm('Clear all face images?')) {
                     Object.keys(faceImages).forEach(face => {
                         faceImages[face] = null;
-                        if (faceTextures[face]) {
-                            faceTextures[face].dispose();
-                            faceTextures[face] = null;
-                        }
                         const preview = document.getElementById('preview-' + face);
                         preview.innerHTML = '—';
                         preview.classList.remove('loaded');
@@ -353,28 +266,15 @@
             });
 
             // Sliders
-            setupSliders();
-        }
-
-        function setupSliders() {
-            const sliders = ['cubeSize', 'density', 'depth'];
-            sliders.forEach(id => {
-                const slider = document.getElementById(id);
-                const valueSpan = document.getElementById('val-' + id);
-
-                slider.addEventListener('input', () => {
-                    let value = parseFloat(slider.value);
-                    if (id === 'density') {
-                        valueSpan.textContent = Math.round(value) + 'X';
-                    } else {
-                        valueSpan.textContent = value.toFixed(1);
-                        if (id === 'depth') valueSpan.textContent += 'X';
-                    }
-                });
+            document.getElementById('size').addEventListener('input', (e) => {
+                document.getElementById('val-size').textContent = parseFloat(e.target.value).toFixed(1);
+            });
+            document.getElementById('density').addEventListener('input', (e) => {
+                document.getElementById('val-density').textContent = Math.round(e.target.value) + 'X';
             });
         }
 
-        // === LOAD IMAGE FOR FACE ===
+        // === LOAD IMAGE ===
         function loadImageForFace(file, face) {
             const reader = new FileReader();
             reader.onload = function(ev) {
@@ -382,47 +282,22 @@
                 img.onload = function() {
                     faceImages[face] = img;
 
-                    // Create texture
-                    const canvas = document.createElement('canvas');
-                    const size = Math.min(img.width, img.height);
-                    canvas.width = size;
-                    canvas.height = size;
-                    const ctx = canvas.getContext('2d');
-                    const offsetX = (img.width - size) / 2;
-                    const offsetY = (img.height - size) / 2;
-                    ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
-
-                    if (faceTextures[face]) faceTextures[face].dispose();
-                    faceTextures[face] = new THREE.CanvasTexture(canvas);
-                    faceTextures[face].minFilter = THREE.LinearFilter;
-                    faceTextures[face].magFilter = THREE.LinearFilter;
-
                     // Update preview
                     const preview = document.getElementById('preview-' + face);
                     preview.innerHTML = '<img src="' + ev.target.result + '">';
                     preview.classList.add('loaded');
 
-                    // Enable generate button if at least one face has image
+                    // Enable generate button
                     const hasAnyImage = Object.values(faceImages).some(img => img !== null);
                     document.getElementById('generate-btn').disabled = !hasAnyImage;
 
-                    document.getElementById('controls-panel').classList.remove('hidden');
+                    // Show controls
+                    document.getElementById('controls').classList.add('visible');
                 };
                 img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
         }
-
-        // === FACE ORIENTATION CONSTANTS ===
-        // Rotations to make each face "frontale" (front-facing)
-        const FACE_ROTATIONS = {
-            'pz': { axis: 'y', angle: 0 },           // Front: no rotation
-            'nz': { axis: 'y', angle: Math.PI },     // Back: rotate 180° on Y
-            'px': { axis: 'y', angle: -Math.PI/2 },  // Right: rotate -90° on Y
-            'nx': { axis: 'y', angle: Math.PI/2 },   // Left: rotate +90° on Y
-            'py': { axis: 'x', angle: -Math.PI/2 },  // Top: rotate -90° on X
-            'ny': { axis: 'x', angle: Math.PI/2 }    // Bottom: rotate +90° on X
-        };
 
         // === GENERATE VOLUME ===
         function generateVolume() {
@@ -434,9 +309,8 @@
             }
 
             // Read parameters
-            cubeSize = parseFloat(document.getElementById('cubeSize').value);
+            cubeSize = parseFloat(document.getElementById('size').value);
             density = parseInt(document.getElementById('density').value);
-            volumeDepth = parseFloat(document.getElementById('depth').value);
 
             const TARGET_SIZE = 512;
             const step = Math.max(1, Math.floor(20 / density));
@@ -444,10 +318,13 @@
             const halfSize = TARGET_SIZE / 2;
             const layerOffset = halfSize * scaleFactor * 0.5;
 
-            // Process all face images
-            const facePixelData = {};
+            // Process each face image
+            const allParticles = [];
+
             Object.entries(faceImages).forEach(([face, img]) => {
                 if (!img) return;
+
+                // Extract pixels from image
                 const canvas = document.createElement('canvas');
                 canvas.width = TARGET_SIZE;
                 canvas.height = TARGET_SIZE;
@@ -456,15 +333,11 @@
                 const offsetX = (img.width - sourceSize) / 2;
                 const offsetY = (img.height - sourceSize) / 2;
                 ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
-                facePixelData[face] = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
-            });
+                const data = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
 
-            // Generate particles per face with proper orientation
-            const allParticles = [];
-
-            Object.entries(facePixelData).forEach(([face, data]) => {
                 const rotation = FACE_ROTATIONS[face];
 
+                // Create particles (1 pixel = 1 cube)
                 for (let v = 0; v < TARGET_SIZE; v += step) {
                     for (let u = 0; u < TARGET_SIZE; u += step) {
                         const i = (v * TARGET_SIZE + u) * 4;
@@ -479,67 +352,54 @@
                             const pu = (u - halfSize) * scaleFactor;
                             const pv = -(v - halfSize) * scaleFactor;
 
-                            // Position based on face orientation
-                            let pos, rot;
+                            // Position based on face
+                            let pos;
                             if (face === 'pz') {
                                 pos = [pu, pv, layerOffset];
-                                rot = rotation;
                             } else if (face === 'nz') {
                                 pos = [pu, pv, -layerOffset];
-                                rot = rotation;
                             } else if (face === 'px') {
                                 pos = [layerOffset, pv, pu];
-                                rot = rotation;
                             } else if (face === 'nx') {
                                 pos = [-layerOffset, pv, pu];
-                                rot = rotation;
                             } else if (face === 'py') {
                                 pos = [pu, layerOffset, pv];
-                                rot = rotation;
                             } else if (face === 'ny') {
                                 pos = [pu, -layerOffset, pv];
-                                rot = rotation;
                             }
 
                             allParticles.push({
                                 position: pos,
                                 color: [r, g, b],
-                                rotation: rot
+                                rotation: rotation
                             });
                         }
                     }
                 }
             });
 
+            // Create InstancedMesh with cubes
             const count = allParticles.length;
-            if (count === 0) return;
-
-            // Create geometry and material
             const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
             const material = new THREE.MeshStandardMaterial({
                 vertexColors: true,
-                roughness: 0.7,
-                metalness: 0.2
+                metalness: 0.1,
+                roughness: 0.8
             });
 
             particleVolume = new THREE.InstancedMesh(geometry, material, count);
-            particleVolume.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-            // Set instance colors
-            const instanceColors = new Float32Array(count * 3);
-            for (let i = 0; i < count; i++) {
-                instanceColors[i * 3] = allParticles[i].color[0];
-                instanceColors[i * 3 + 1] = allParticles[i].color[1];
-                instanceColors[i * 3 + 2] = allParticles[i].color[2];
-            }
-            particleVolume.instanceColor = new THREE.InstancedBufferAttribute(instanceColors, 3);
-
-            // Set instance positions and rotations
+            const colors = new Float32Array(count * 3);
             const matrix = new THREE.Matrix4();
             const rotation = new THREE.Euler();
 
             for (let i = 0; i < count; i++) {
                 const particle = allParticles[i];
+
+                // Set color
+                colors[i * 3] = particle.color[0];
+                colors[i * 3 + 1] = particle.color[1];
+                colors[i * 3 + 2] = particle.color[2];
 
                 // Apply rotation for frontale orientation
                 rotation.set(0, 0, 0);
@@ -555,47 +415,56 @@
                 particleVolume.setMatrixAt(i, matrix);
             }
 
+            geometry.setAttribute('color', new THREE.InstancedBufferAttribute(colors, 3));
             particleVolume.instanceMatrix.needsUpdate = true;
             scene.add(particleVolume);
+
+            console.log(`Generated ${count} particles from ${Object.values(faceImages).filter(Boolean).length} faces`);
         }
 
         // === MOUSE CONTROLS ===
         function setupMouseControls() {
-            let isDrag = false;
-            let prevMouse = { x: 0, y: 0 };
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
 
-            renderer.domElement.onmousedown = function(e) {
-                isDrag = true;
-                prevMouse = { x: e.clientX, y: e.clientY };
-            };
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+            });
 
-            renderer.domElement.onmousemove = function(e) {
-                if (!isDrag || !particleVolume) return;
-                const dx = e.clientX - prevMouse.x;
-                const dy = e.clientY - prevMouse.y;
-                particleVolume.rotation.y += dx * 0.005;
-                particleVolume.rotation.x += dy * 0.005;
-                prevMouse = { x: e.clientX, y: e.clientY };
-            };
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (isDragging && particleVolume) {
+                    const deltaMove = {
+                        x: e.offsetX - previousMousePosition.x,
+                        y: e.offsetY - previousMousePosition.y
+                    };
 
-            document.onmouseup = function() {
-                isDrag = false;
-            };
+                    particleVolume.rotation.y += deltaMove.x * 0.005;
+                    particleVolume.rotation.x += deltaMove.y * 0.005;
+                }
 
-            renderer.domElement.addEventListener('wheel', function(e) {
+                previousMousePosition = {
+                    x: e.offsetX,
+                    y: e.offsetY
+                };
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            renderer.domElement.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                const delta = e.deltaY > 0 ? 1 : -1;
-                camera.position.z += delta * 0.1 * camera.position.z;
+                const zoomSpeed = 0.1;
+                camera.position.z += e.deltaY * zoomSpeed;
                 camera.position.z = Math.max(50, Math.min(1000, camera.position.z));
             });
         }
 
+        // === UTILITY FUNCTIONS ===
         function applySettings() {
-            if (!Object.values(faceImages).some(img => img !== null)) {
-                alert('Please load at least one face image');
-                return;
+            if (Object.values(faceImages).some(img => img !== null)) {
+                generateVolume();
             }
-            generateVolume();
         }
 
         function resetCamera() {
@@ -609,19 +478,18 @@
         // === ANIMATION LOOP ===
         function animate() {
             requestAnimationFrame(animate);
-            renderer.clear();
             renderer.render(scene, camera);
         }
 
         // === RESIZE ===
-        window.onresize = function() {
+        window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        };
+        });
 
-        // === START ===
-        window.onload = init;
+        // Start
+        init();
     </script>
 </body>
 </html>
