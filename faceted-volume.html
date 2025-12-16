@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Faceted Volume - Prototype 1.1</title>
-    <!-- Version 1.1: Cube Faces Selector -->
+    <!-- Version 1.1: Face-oriented frontale projection -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -94,7 +94,7 @@
 <body>
     <a href="index.html" id="title-link">
         <div id="title">Volumetric Particles</div>
-        <div id="subtitle">Volume à faces — Projection par face de cube</div>
+        <div id="subtitle">Volume à faces — Projection frontale par face</div>
     </a>
 
     <div id="canvas"></div>
@@ -413,6 +413,17 @@
             reader.readAsDataURL(file);
         }
 
+        // === FACE ORIENTATION CONSTANTS ===
+        // Rotations to make each face "frontale" (front-facing)
+        const FACE_ROTATIONS = {
+            'pz': { axis: 'y', angle: 0 },           // Front: no rotation
+            'nz': { axis: 'y', angle: Math.PI },     // Back: rotate 180° on Y
+            'px': { axis: 'y', angle: -Math.PI/2 },  // Right: rotate -90° on Y
+            'nx': { axis: 'y', angle: Math.PI/2 },   // Left: rotate +90° on Y
+            'py': { axis: 'x', angle: -Math.PI/2 },  // Top: rotate -90° on X
+            'ny': { axis: 'x', angle: Math.PI/2 }    // Bottom: rotate +90° on X
+        };
+
         // === GENERATE VOLUME ===
         function generateVolume() {
             // Remove previous volume
@@ -427,154 +438,120 @@
             density = parseInt(document.getElementById('density').value);
             volumeDepth = parseFloat(document.getElementById('depth').value);
 
-            // Determine grid resolution based on density
             const TARGET_SIZE = 512;
             const step = Math.max(1, Math.floor(20 / density));
+            const scaleFactor = 0.5;
+            const halfSize = TARGET_SIZE / 2;
+            const layerOffset = halfSize * scaleFactor * 0.5;
 
-            // Process all face images and extract pixel data
+            // Process all face images
             const facePixelData = {};
-
             Object.entries(faceImages).forEach(([face, img]) => {
                 if (!img) return;
-
                 const canvas = document.createElement('canvas');
                 canvas.width = TARGET_SIZE;
                 canvas.height = TARGET_SIZE;
                 const ctx = canvas.getContext('2d');
-
                 const sourceSize = Math.min(img.width, img.height);
                 const offsetX = (img.width - sourceSize) / 2;
                 const offsetY = (img.height - sourceSize) / 2;
                 ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
-
                 facePixelData[face] = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
             });
 
-            // Collect unique pixel positions from all faces
-            const pixelSet = new Set();
+            // Generate particles per face with proper orientation
+            const allParticles = [];
+
             Object.entries(facePixelData).forEach(([face, data]) => {
-                for (let y = 0; y < TARGET_SIZE; y += step) {
-                    for (let x = 0; x < TARGET_SIZE; x += step) {
-                        const i = (y * TARGET_SIZE + x) * 4;
+                const rotation = FACE_ROTATIONS[face];
+
+                for (let v = 0; v < TARGET_SIZE; v += step) {
+                    for (let u = 0; u < TARGET_SIZE; u += step) {
+                        const i = (v * TARGET_SIZE + u) * 4;
                         const alpha = data[i + 3];
+
                         if (alpha > 30) {
-                            pixelSet.add(`${x},${y}`);
+                            const r = data[i] / 255;
+                            const g = data[i + 1] / 255;
+                            const b = data[i + 2] / 255;
+
+                            // Base position in UV plane
+                            const pu = (u - halfSize) * scaleFactor;
+                            const pv = -(v - halfSize) * scaleFactor;
+
+                            // Position based on face orientation
+                            let pos, rot;
+                            if (face === 'pz') {
+                                pos = [pu, pv, layerOffset];
+                                rot = rotation;
+                            } else if (face === 'nz') {
+                                pos = [pu, pv, -layerOffset];
+                                rot = rotation;
+                            } else if (face === 'px') {
+                                pos = [layerOffset, pv, pu];
+                                rot = rotation;
+                            } else if (face === 'nx') {
+                                pos = [-layerOffset, pv, pu];
+                                rot = rotation;
+                            } else if (face === 'py') {
+                                pos = [pu, layerOffset, pv];
+                                rot = rotation;
+                            } else if (face === 'ny') {
+                                pos = [pu, -layerOffset, pv];
+                                rot = rotation;
+                            }
+
+                            allParticles.push({
+                                position: pos,
+                                color: [r, g, b],
+                                rotation: rot
+                            });
                         }
                     }
                 }
             });
 
-            // Build particle data with per-face colors
-            const positions = [];
-            const colorsPX = [], colorsNX = [];
-            const colorsPY = [], colorsNY = [];
-            const colorsPZ = [], colorsNZ = [];
+            const count = allParticles.length;
+            if (count === 0) return;
 
-            const scaleFactor = 0.5;
-            const halfSize = TARGET_SIZE / 2;
-            const depthSpread = TARGET_SIZE * scaleFactor * volumeDepth;
-
-            Array.from(pixelSet).forEach(key => {
-                const [x, y] = key.split(',').map(Number);
-
-                // Position
-                const px = (x - halfSize) * scaleFactor;
-                const py = -(y - halfSize) * scaleFactor;
-                const pz = (Math.random() - 0.5) * depthSpread;
-                positions.push(px, py, pz);
-
-                // Extract pixel color for each face
-                const i = (y * TARGET_SIZE + x) * 4;
-
-                // Helper to get color or default gray
-                const getColor = (face) => {
-                    const data = facePixelData[face];
-                    if (data && data[i + 3] > 30) {
-                        return [data[i] / 255, data[i+1] / 255, data[i+2] / 255];
-                    }
-                    return [0.2, 0.2, 0.2]; // default gray
-                };
-
-                const cPX = getColor('px'); colorsPX.push(...cPX);
-                const cNX = getColor('nx'); colorsNX.push(...cNX);
-                const cPY = getColor('py'); colorsPY.push(...cPY);
-                const cNY = getColor('ny'); colorsNY.push(...cNY);
-                const cPZ = getColor('pz'); colorsPZ.push(...cPZ);
-                const cNZ = getColor('nz'); colorsNZ.push(...cNZ);
-            });
-
-            const count = positions.length / 3;
-
-            // Create custom geometry with per-face color attributes
+            // Create geometry and material
             const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-
-            // Custom shader to handle per-instance face colors
-            const material = new THREE.ShaderMaterial({
-                vertexShader: `
-                    attribute vec3 colorPX;
-                    attribute vec3 colorNX;
-                    attribute vec3 colorPY;
-                    attribute vec3 colorNY;
-                    attribute vec3 colorPZ;
-                    attribute vec3 colorNZ;
-
-                    varying vec3 vColor;
-                    varying vec3 vNormal;
-                    varying vec3 vWorldNormal;
-
-                    void main() {
-                        // Use LOCAL normal to determine face (unaffected by rotation)
-                        // This ensures face-to-color mapping stays consistent
-                        vec3 localNormal = normal;
-
-                        // Determine which face based on LOCAL normal
-                        vec3 absNormal = abs(localNormal);
-                        if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
-                            // X face
-                            vColor = localNormal.x > 0.0 ? colorPX : colorNX;
-                        } else if (absNormal.y > absNormal.x && absNormal.y > absNormal.z) {
-                            // Y face
-                            vColor = localNormal.y > 0.0 ? colorPY : colorNY;
-                        } else {
-                            // Z face
-                            vColor = localNormal.z > 0.0 ? colorPZ : colorNZ;
-                        }
-
-                        // Transform normal to world space for lighting only
-                        vWorldNormal = normalize((modelMatrix * instanceMatrix * vec4(normal, 0.0)).xyz);
-
-                        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-                    }
-                `,
-                fragmentShader: `
-                    varying vec3 vColor;
-                    varying vec3 vWorldNormal;
-
-                    void main() {
-                        // Simple lighting using world-space normal
-                        vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
-                        float diffuse = max(dot(vWorldNormal, lightDir), 0.3);
-
-                        gl_FragColor = vec4(vColor * diffuse, 1.0);
-                    }
-                `
+            const material = new THREE.MeshStandardMaterial({
+                vertexColors: true,
+                roughness: 0.7,
+                metalness: 0.2
             });
 
             particleVolume = new THREE.InstancedMesh(geometry, material, count);
             particleVolume.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-            // Set per-instance face colors
-            geometry.setAttribute('colorPX', new THREE.InstancedBufferAttribute(new Float32Array(colorsPX), 3));
-            geometry.setAttribute('colorNX', new THREE.InstancedBufferAttribute(new Float32Array(colorsNX), 3));
-            geometry.setAttribute('colorPY', new THREE.InstancedBufferAttribute(new Float32Array(colorsPY), 3));
-            geometry.setAttribute('colorNY', new THREE.InstancedBufferAttribute(new Float32Array(colorsNY), 3));
-            geometry.setAttribute('colorPZ', new THREE.InstancedBufferAttribute(new Float32Array(colorsPZ), 3));
-            geometry.setAttribute('colorNZ', new THREE.InstancedBufferAttribute(new Float32Array(colorsNZ), 3));
-
-            // Set instance positions
-            const matrix = new THREE.Matrix4();
+            // Set instance colors
+            const instanceColors = new Float32Array(count * 3);
             for (let i = 0; i < count; i++) {
-                matrix.setPosition(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+                instanceColors[i * 3] = allParticles[i].color[0];
+                instanceColors[i * 3 + 1] = allParticles[i].color[1];
+                instanceColors[i * 3 + 2] = allParticles[i].color[2];
+            }
+            particleVolume.instanceColor = new THREE.InstancedBufferAttribute(instanceColors, 3);
+
+            // Set instance positions and rotations
+            const matrix = new THREE.Matrix4();
+            const rotation = new THREE.Euler();
+
+            for (let i = 0; i < count; i++) {
+                const particle = allParticles[i];
+
+                // Apply rotation for frontale orientation
+                rotation.set(0, 0, 0);
+                if (particle.rotation.axis === 'x') {
+                    rotation.x = particle.rotation.angle;
+                } else if (particle.rotation.axis === 'y') {
+                    rotation.y = particle.rotation.angle;
+                }
+
+                matrix.makeRotationFromEuler(rotation);
+                matrix.setPosition(particle.position[0], particle.position[1], particle.position[2]);
+
                 particleVolume.setMatrixAt(i, matrix);
             }
 
