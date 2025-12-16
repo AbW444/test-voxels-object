@@ -58,11 +58,26 @@
                    width: 320px; display: none; }
         #controls.visible { display: block; }
 
-        .param-row { margin-bottom: 16px; }
-        .param-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .param-header label { font-size: 10px; font-weight: 600; text-transform: uppercase;
+        .param-row { margin-bottom: 20px; }
+        .param-header { display: flex; justify-content: space-between; align-items: center;
+                        margin-bottom: 8px; }
+        .param-header label { margin: 0; font-size: 10px; font-weight: 600; text-transform: uppercase;
                              letter-spacing: 0.8px; opacity: 0.7; }
-        .param-value { font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700; }
+        .param-controls { display: flex; gap: 4px; align-items: center; }
+
+        .arrow-btn { width: 20px; height: 20px; padding: 0; margin: 0;
+                     background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+                     border-radius: 4px; color: #fff; font-size: 10px; cursor: pointer;
+                     display: flex; align-items: center; justify-content: center;
+                     transition: all 0.15s; line-height: 1; }
+        .arrow-btn:hover { background: rgba(255,255,255,0.2); }
+        .arrow-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
+
+        .value { font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700;
+                min-width: 40px; text-align: center; }
+
+        .slider-wrapper { position: relative; }
+        .slider-wrapper .slider { margin: 0; }
 
         .slider { width: 100%; height: 4px; border-radius: 2px;
                  background: rgba(255,255,255,0.15); outline: none;
@@ -135,45 +150,79 @@
     <div id="controls">
         <div class="param-row">
             <div class="param-header">
-                <label>Cube Size</label>
-                <span class="param-value" id="val-size">1.0</span>
+                <label>POINT SIZE</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="size" data-dir="down">▼</button>
+                    <span class="value" id="val-size" data-param="size">1.0</span>
+                    <button class="arrow-btn" data-param="size" data-dir="up">▲</button>
+                </div>
             </div>
-            <input type="range" class="slider" id="size" min="0.1" max="2.0" step="0.01" value="1.0">
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="size" min="0.1" max="2.0" step="0.01" value="1.0">
+            </div>
         </div>
 
         <div class="param-row">
             <div class="param-header">
-                <label>Density</label>
-                <span class="param-value" id="val-density">7X</span>
+                <label>PARTICLE DENSITY</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="density" data-dir="down">▼</button>
+                    <span class="value" id="val-density" data-param="density">7X</span>
+                    <button class="arrow-btn" data-param="density" data-dir="up">▲</button>
+                </div>
             </div>
-            <input type="range" class="slider" id="density" min="1" max="15" step="1" value="7">
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="density" min="1" max="15" step="1" value="7">
+            </div>
         </div>
 
         <div class="param-row">
             <div class="param-header">
-                <label>Depth</label>
-                <span class="param-value" id="val-depth">1.0X</span>
+                <label>DEPTH SPREAD</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="depth" data-dir="down">▼</button>
+                    <span class="value" id="val-depth" data-param="depth">1.0X</span>
+                    <button class="arrow-btn" data-param="depth" data-dir="up">▲</button>
+                </div>
             </div>
-            <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
+            </div>
         </div>
 
         <div class="param-row">
             <div class="param-header">
-                <label>Brightness</label>
-                <span class="param-value" id="val-brightness">1.8</span>
+                <label>BRIGHTNESS</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="brightness" data-dir="down">▼</button>
+                    <span class="value" id="val-brightness" data-param="brightness">1.8</span>
+                    <button class="arrow-btn" data-param="brightness" data-dir="up">▲</button>
+                </div>
             </div>
-            <input type="range" class="slider" id="brightness" min="0.5" max="3.0" step="0.1" value="1.8">
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="brightness" min="0.5" max="3.0" step="0.1" value="1.8">
+            </div>
         </div>
 
         <div class="param-row">
             <div class="param-header">
-                <label>Black Threshold</label>
-                <span class="param-value" id="val-blackThreshold">30</span>
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="hide-black" style="width: 14px; height: 14px; cursor: pointer;">
+                    <span>HIDE BLACK</span>
+                </label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="blackThreshold" data-dir="down">▼</button>
+                    <span class="value" id="val-blackThreshold" data-param="blackThreshold">30</span>
+                    <button class="arrow-btn" data-param="blackThreshold" data-dir="up">▲</button>
+                </div>
             </div>
-            <input type="range" class="slider" id="blackThreshold" min="0" max="128" step="1" value="30">
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="blackThreshold" min="0" max="128" step="1" value="30">
+            </div>
         </div>
 
-        <button onclick="applySettings()">Apply Settings</button>
+        <button onclick="applySettings()">Apply</button>
+        <button onclick="resetToDefaults()">Reset to Defaults</button>
         <button onclick="resetCamera()">Reset Camera</button>
     </div>
 
@@ -192,7 +241,17 @@
         let density = 7;
         let depthMultiplier = 1.0;
         let brightness = 1.8;
+        let hideBlack = false;
         let blackThreshold = 30;
+
+        // Parameter control system
+        const paramConfigs = {
+            size: { min: 0.1, max: 2.0, step: 0.01, decimals: 2, suffix: '' },
+            density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
+            depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
+            brightness: { min: 0.5, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
+        };
 
         // === INIT ===
         function init() {
@@ -278,23 +337,45 @@
                 }
             });
 
-            // Sliders
-            ['size', 'density', 'depth', 'brightness', 'blackThreshold'].forEach(id => {
-                const slider = document.getElementById(id);
-                slider.addEventListener('input', () => {
-                    const value = parseFloat(slider.value);
-                    const display = document.getElementById('val-' + id);
-                    if (id === 'density') {
-                        display.textContent = Math.round(value) + 'X';
-                    } else if (id === 'blackThreshold') {
-                        display.textContent = Math.round(value);
-                    } else if (id === 'size') {
-                        display.textContent = value.toFixed(2);
+            // Sliders - update display on input
+            Object.keys(paramConfigs).forEach(param => {
+                const slider = document.getElementById(param);
+                slider.addEventListener('input', () => updateValueDisplay(param));
+            });
+
+            // Arrow buttons
+            document.querySelectorAll('.arrow-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const param = btn.dataset.param;
+                    const dir = btn.dataset.dir;
+                    const slider = document.getElementById(param);
+                    const config = paramConfigs[param];
+                    let value = parseFloat(slider.value);
+
+                    if (dir === 'up') {
+                        value = Math.min(config.max, value + config.step);
                     } else {
-                        display.textContent = value.toFixed(1) + (id === 'depth' ? 'X' : '');
+                        value = Math.max(config.min, value - config.step);
                     }
+
+                    slider.value = value;
+                    updateValueDisplay(param);
                 });
             });
+
+            // Hide Black checkbox
+            document.getElementById('hide-black').addEventListener('change', (e) => {
+                hideBlack = e.target.checked;
+            });
+        }
+
+        function updateValueDisplay(param) {
+            const slider = document.getElementById(param);
+            const valueSpan = document.getElementById('val-' + param);
+            const config = paramConfigs[param];
+            const value = parseFloat(slider.value);
+
+            valueSpan.textContent = value.toFixed(config.decimals) + config.suffix;
         }
 
         // === LOAD IMAGE FOR FACE ===
@@ -389,8 +470,8 @@
                         // Filter out transparent and dark pixels
                         if (alpha > 30) {
                             const maxColor = Math.max(r, g, b);
-                            if (maxColor < blackThreshold) {
-                                continue; // Skip dark pixels
+                            if (hideBlack && maxColor < blackThreshold) {
+                                continue; // Skip dark pixels if hideBlack is enabled
                             }
 
                             // Base grid position (in 2D)
@@ -568,6 +649,24 @@
 
         // === UTILITY FUNCTIONS ===
         function applySettings() {
+            if (Object.values(faceImages).some(img => img !== null)) {
+                generateVolume();
+            }
+        }
+
+        function resetToDefaults() {
+            document.getElementById('size').value = 1.0;
+            document.getElementById('density').value = 7;
+            document.getElementById('depth').value = 1.0;
+            document.getElementById('brightness').value = 1.8;
+            document.getElementById('blackThreshold').value = 30;
+            document.getElementById('hide-black').checked = false;
+
+            // Update displays
+            Object.keys(paramConfigs).forEach(param => updateValueDisplay(param));
+            hideBlack = false;
+
+            // Regenerate if images loaded
             if (Object.values(faceImages).some(img => img !== null)) {
                 generateVolume();
             }
