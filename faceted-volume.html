@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Faceted Volume - Cube Pixels</title>
+    <title>Faceted Volume - Textured Cube Pixels</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -17,106 +17,171 @@
                 text-transform: uppercase; letter-spacing: 2px; }
         #subtitle { font-size: 11px; opacity: 0.5; margin-top: 4px; letter-spacing: 0.5px; }
 
-        #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-              z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
-              padding: 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
-              max-width: 500px; width: 90%; transition: all 0.4s ease; }
+        /* Face Selector Panel - LEFT */
+        #face-panel { position: fixed; top: 100px; left: 20px; z-index: 50;
+                     background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+                     padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+                     width: 280px; max-height: calc(100vh - 140px); overflow-y: auto; }
 
-        #ui.loaded { top: auto; bottom: 20px; left: auto; right: 20px;
-                     transform: none; max-width: 360px; width: auto; padding: 24px; }
+        #face-panel h3 { font-size: 12px; font-weight: 600; margin-bottom: 16px;
+                        text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;
+                        text-align: center; }
 
-        button { display: block; width: 100%; margin: 8px 0; padding: 14px;
+        .face-item { display: flex; align-items: center; gap: 12px; padding: 8px;
+                    background: rgba(255,255,255,0.05); border-radius: 6px;
+                    margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+                    border: 2px solid transparent; }
+        .face-item:hover { background: rgba(255,255,255,0.1); }
+        .face-item.selected { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.15); }
+
+        .face-color { width: 24px; height: 24px; border-radius: 4px; flex-shrink: 0; }
+        .face-label { font-size: 11px; font-weight: 600; flex-grow: 1; }
+        .face-preview { width: 32px; height: 32px; border-radius: 4px;
+                       background: rgba(255,255,255,0.05); overflow: hidden;
+                       display: flex; align-items: center; justify-content: center;
+                       font-size: 8px; opacity: 0.5; }
+        .face-preview img { width: 100%; height: 100%; object-fit: cover; }
+        .face-preview.loaded { opacity: 1; }
+
+        button { display: block; width: 100%; margin: 12px 0; padding: 12px;
                 background: rgba(255,255,255,0.1); color: #fff;
                 border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-                cursor: pointer; font-size: 12px; font-weight: 600;
+                cursor: pointer; font-size: 11px; font-weight: 600;
                 transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
         button:hover { background: rgba(255,255,255,0.2); }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        .preview { width: 100%; aspect-ratio: 1; border-radius: 6px; margin: 8px 0;
-                   display: flex; align-items: center; justify-content: center;
-                   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
-                   overflow: hidden; font-size: 10px; opacity: 0.4; }
-        .preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .preview.loaded { opacity: 1; }
+        /* Controls Panel - RIGHT */
+        #controls { position: fixed; bottom: 20px; right: 20px; z-index: 50;
+                   background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+                   padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+                   width: 320px; display: none; }
+        #controls.visible { display: block; }
 
-        input[type="file"] { display: none; }
-        label { font-size: 11px; font-weight: 600; margin-top: 16px; display: block;
-                text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.7; }
-
-        .hidden { display: none !important; }
-
-        #controls { margin-top: 16px; padding-top: 16px;
-                    border-top: 1px solid rgba(255,255,255,0.15); }
-
-        .param-row { margin-bottom: 20px; }
-        .param-header { display: flex; justify-content: space-between; align-items: center;
-                        margin-bottom: 8px; }
-        .param-header label { margin: 0; }
-        .param-value { font-family: 'Courier New', monospace; font-weight: 700; font-size: 11px; }
+        .param-row { margin-bottom: 16px; }
+        .param-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .param-header label { font-size: 10px; font-weight: 600; text-transform: uppercase;
+                             letter-spacing: 0.8px; opacity: 0.7; }
+        .param-value { font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700; }
 
         .slider { width: 100%; height: 4px; border-radius: 2px;
-                  background: rgba(255,255,255,0.15); outline: none;
-                  -webkit-appearance: none; margin: 10px 0; }
-        .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px;
-                                         border-radius: 50%; background: #fff; cursor: pointer; }
-        .slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%;
-                                     background: #fff; cursor: pointer; border: none; }
+                 background: rgba(255,255,255,0.15); outline: none;
+                 -webkit-appearance: none; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px;
+                                       border-radius: 50%; background: #fff; cursor: pointer; }
+        .slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%;
+                                   background: #fff; cursor: pointer; border: none; }
+
+        input[type="file"] { display: none; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <a href="index.html" id="title-link">
         <div id="title">Volumetric Particles</div>
-        <div id="subtitle">Cube Pixels — Dispersed Volume</div>
+        <div id="subtitle">6 Faces — Textured Cube Pixels</div>
     </a>
 
     <div id="canvas"></div>
 
-    <div id="ui">
-        <div id="load-section">
-            <label>Load Image</label>
-            <div class="preview" id="preview">Drop or Click</div>
-            <button onclick="document.getElementById('file-input').click()">Choose Image</button>
-            <input type="file" id="file-input" accept="image/*">
+    <!-- Face Selector Panel -->
+    <div id="face-panel">
+        <h3>⬢ Cube Faces</h3>
+
+        <div class="face-item" data-face="px">
+            <div class="face-color" style="background: #ff4444;"></div>
+            <div class="face-label">Face +X (Right)</div>
+            <div class="face-preview" id="preview-px">—</div>
         </div>
 
-        <div id="controls" class="hidden">
-            <div class="param-row">
-                <div class="param-header">
-                    <label>Cube Size</label>
-                    <span class="param-value" id="val-size">1.0</span>
-                </div>
-                <input type="range" class="slider" id="size" min="0.5" max="3" step="0.1" value="1.0">
-            </div>
-
-            <div class="param-row">
-                <div class="param-header">
-                    <label>Density</label>
-                    <span class="param-value" id="val-density">7X</span>
-                </div>
-                <input type="range" class="slider" id="density" min="1" max="15" step="1" value="7">
-            </div>
-
-            <div class="param-row">
-                <div class="param-header">
-                    <label>Depth</label>
-                    <span class="param-value" id="val-depth">1.0X</span>
-                </div>
-                <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
-            </div>
-
-            <button onclick="applySettings()">Apply</button>
-            <button onclick="resetCamera()">Reset Camera</button>
+        <div class="face-item" data-face="nx">
+            <div class="face-color" style="background: #ff8844;"></div>
+            <div class="face-label">Face -X (Left)</div>
+            <div class="face-preview" id="preview-nx">—</div>
         </div>
+
+        <div class="face-item" data-face="py">
+            <div class="face-color" style="background: #44ff44;"></div>
+            <div class="face-label">Face +Y (Top)</div>
+            <div class="face-preview" id="preview-py">—</div>
+        </div>
+
+        <div class="face-item" data-face="ny">
+            <div class="face-color" style="background: #44ff88;"></div>
+            <div class="face-label">Face -Y (Bottom)</div>
+            <div class="face-preview" id="preview-ny">—</div>
+        </div>
+
+        <div class="face-item" data-face="pz">
+            <div class="face-color" style="background: #4444ff;"></div>
+            <div class="face-label">Face +Z (Front)</div>
+            <div class="face-preview" id="preview-pz">—</div>
+        </div>
+
+        <div class="face-item" data-face="nz">
+            <div class="face-color" style="background: #8844ff;"></div>
+            <div class="face-label">Face -Z (Back)</div>
+            <div class="face-preview" id="preview-nz">—</div>
+        </div>
+
+        <button id="load-btn" disabled>Load Image for Face</button>
+        <input type="file" id="file-input" accept="image/*">
+
+        <button id="generate-btn" disabled>Generate Volume</button>
+        <button id="clear-btn">Clear All</button>
+    </div>
+
+    <!-- Controls Panel -->
+    <div id="controls">
+        <div class="param-row">
+            <div class="param-header">
+                <label>Cube Size</label>
+                <span class="param-value" id="val-size">1.0</span>
+            </div>
+            <input type="range" class="slider" id="size" min="0.5" max="3" step="0.1" value="1.0">
+        </div>
+
+        <div class="param-row">
+            <div class="param-header">
+                <label>Density</label>
+                <span class="param-value" id="val-density">7X</span>
+            </div>
+            <input type="range" class="slider" id="density" min="1" max="15" step="1" value="7">
+        </div>
+
+        <div class="param-row">
+            <div class="param-header">
+                <label>Depth</label>
+                <span class="param-value" id="val-depth">1.0X</span>
+            </div>
+            <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
+        </div>
+
+        <button onclick="applySettings()">Apply Settings</button>
+        <button onclick="resetCamera()">Reset Camera</button>
     </div>
 
     <script src="three.min.js"></script>
     <script>
-        let scene, camera, renderer, particles;
-        let pointSize = 1.0;
-        let particleDensity = 7;
-        let depthMultiplier = 1.0;
-        let currentImage = null;
+        // === GLOBAL STATE ===
+        let scene, camera, renderer, particleVolume;
+        let selectedFace = null;
+        let faceTextures = {
+            px: null, nx: null,  // +X, -X (right, left)
+            py: null, ny: null,  // +Y, -Y (top, bottom)
+            pz: null, nz: null   // +Z, -Z (front, back)
+        };
+        let faceImages = {
+            px: null, nx: null,
+            py: null, ny: null,
+            pz: null, nz: null
+        };
 
+        let cubeSize = 1.0;
+        let density = 7;
+        let depthMultiplier = 1.0;
+
+        // === INIT ===
         function init() {
             if (typeof THREE === 'undefined') {
                 alert('THREE.js failed to load.');
@@ -128,30 +193,254 @@
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
             camera.position.set(0, 0, 300);
+            camera.lookAt(0, 0, 0);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.getElementById('canvas').appendChild(renderer.domElement);
 
-            // Lighting for 3D cubes
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambientLight);
 
-            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
             dirLight1.position.set(1, 1, 1);
             scene.add(dirLight1);
 
-            const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
             dirLight2.position.set(-1, -1, -0.5);
             scene.add(dirLight2);
 
-            setupControls();
-            setupFileInput();
+            setupMouseControls();
+            setupUI();
 
             animate();
         }
 
-        function setupControls() {
+        // === UI SETUP ===
+        function setupUI() {
+            // Face selection
+            document.querySelectorAll('.face-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    document.querySelectorAll('.face-item').forEach(i => i.classList.remove('selected'));
+                    this.classList.add('selected');
+                    selectedFace = this.dataset.face;
+                    document.getElementById('load-btn').disabled = false;
+                });
+            });
+
+            // Load image button
+            document.getElementById('load-btn').addEventListener('click', () => {
+                if (selectedFace) {
+                    document.getElementById('file-input').click();
+                }
+            });
+
+            // File input
+            document.getElementById('file-input').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file && file.type.startsWith('image/') && selectedFace) {
+                    loadImageForFace(file, selectedFace);
+                }
+            });
+
+            // Generate button
+            document.getElementById('generate-btn').addEventListener('click', generateVolume);
+
+            // Clear button
+            document.getElementById('clear-btn').addEventListener('click', () => {
+                if (confirm('Clear all face images?')) {
+                    Object.keys(faceImages).forEach(face => {
+                        faceImages[face] = null;
+                        faceTextures[face] = null;
+                        const preview = document.getElementById('preview-' + face);
+                        preview.innerHTML = '—';
+                        preview.classList.remove('loaded');
+                    });
+                    document.getElementById('generate-btn').disabled = true;
+                    if (particleVolume) {
+                        scene.remove(particleVolume);
+                        particleVolume = null;
+                    }
+                    document.getElementById('controls').classList.remove('visible');
+                }
+            });
+
+            // Sliders
+            ['size', 'density', 'depth'].forEach(id => {
+                const slider = document.getElementById(id);
+                slider.addEventListener('input', () => {
+                    const value = parseFloat(slider.value);
+                    const display = document.getElementById('val-' + id);
+                    if (id === 'density') {
+                        display.textContent = Math.round(value) + 'X';
+                    } else {
+                        display.textContent = value.toFixed(1) + (id === 'depth' ? 'X' : '');
+                    }
+                });
+            });
+        }
+
+        // === LOAD IMAGE FOR FACE ===
+        function loadImageForFace(file, face) {
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const img = new Image();
+                img.onload = function() {
+                    faceImages[face] = img;
+
+                    // Create texture from image
+                    const canvas = document.createElement('canvas');
+                    const TARGET_SIZE = 512;
+                    canvas.width = TARGET_SIZE;
+                    canvas.height = TARGET_SIZE;
+                    const ctx = canvas.getContext('2d');
+
+                    // Center crop to square
+                    const sourceSize = Math.min(img.width, img.height);
+                    const offsetX = (img.width - sourceSize) / 2;
+                    const offsetY = (img.height - sourceSize) / 2;
+                    ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+
+                    // Create THREE.js texture
+                    const texture = new THREE.CanvasTexture(canvas);
+                    texture.needsUpdate = true;
+                    faceTextures[face] = texture;
+
+                    // Update preview
+                    const preview = document.getElementById('preview-' + face);
+                    preview.innerHTML = '<img src="' + ev.target.result + '">';
+                    preview.classList.add('loaded');
+
+                    // Enable generate button
+                    const hasAnyImage = Object.values(faceImages).some(img => img !== null);
+                    document.getElementById('generate-btn').disabled = !hasAnyImage;
+
+                    // Show controls
+                    document.getElementById('controls').classList.add('visible');
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // === GENERATE VOLUME ===
+        function generateVolume() {
+            // Remove previous volume
+            if (particleVolume) {
+                scene.remove(particleVolume);
+                if (particleVolume.geometry) particleVolume.geometry.dispose();
+                if (particleVolume.material) {
+                    if (Array.isArray(particleVolume.material)) {
+                        particleVolume.material.forEach(m => m.dispose());
+                    } else {
+                        particleVolume.material.dispose();
+                    }
+                }
+            }
+
+            // Read parameters
+            cubeSize = parseFloat(document.getElementById('size').value);
+            density = parseInt(document.getElementById('density').value);
+            depthMultiplier = parseFloat(document.getElementById('depth').value);
+
+            // Determine grid size based on density of all loaded images
+            const TARGET_SIZE = 512;
+            const step = Math.max(1, Math.floor(10 / density));
+            const scaleFactor = 0.5;
+            const halfSize = TARGET_SIZE / 2;
+            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
+
+            // Collect all pixel positions (we'll use the first loaded image to determine positions)
+            const positions = [];
+            let referenceImageProcessed = false;
+
+            // Process first available image to get positions
+            for (let face in faceImages) {
+                const img = faceImages[face];
+                if (img && !referenceImageProcessed) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = TARGET_SIZE;
+                    canvas.height = TARGET_SIZE;
+                    const ctx = canvas.getContext('2d');
+                    const sourceSize = Math.min(img.width, img.height);
+                    const offsetX = (img.width - sourceSize) / 2;
+                    const offsetY = (img.height - sourceSize) / 2;
+                    ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+                    const data = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+
+                    for (let v = 0; v < TARGET_SIZE; v += step) {
+                        for (let u = 0; u < TARGET_SIZE; u += step) {
+                            const i = (v * TARGET_SIZE + u) * 4;
+                            const alpha = data[i + 3];
+
+                            if (alpha > 30) {
+                                const px = (u - halfSize) * scaleFactor;
+                                const py = -(v - halfSize) * scaleFactor;
+                                const pz = (Math.random() - 0.5) * depthSpread;
+                                positions.push(px, py, pz);
+                            }
+                        }
+                    }
+                    referenceImageProcessed = true;
+                    break;
+                }
+            }
+
+            // Create materials for each face
+            // THREE.js BoxGeometry face order: [+X, -X, +Y, -Y, +Z, -Z]
+            const materials = [
+                createMaterialForFace('px'),  // Right
+                createMaterialForFace('nx'),  // Left
+                createMaterialForFace('py'),  // Top
+                createMaterialForFace('ny'),  // Bottom
+                createMaterialForFace('pz'),  // Front
+                createMaterialForFace('nz')   // Back
+            ];
+
+            // Create InstancedMesh with cubes
+            const count = positions.length / 3;
+            const size = cubeSize * 3;
+            const geometry = new THREE.BoxGeometry(size, size, size);
+
+            particleVolume = new THREE.InstancedMesh(geometry, materials, count);
+
+            const matrix = new THREE.Matrix4();
+
+            for (let i = 0; i < count; i++) {
+                matrix.setPosition(
+                    positions[i * 3],
+                    positions[i * 3 + 1],
+                    positions[i * 3 + 2]
+                );
+                particleVolume.setMatrixAt(i, matrix);
+            }
+
+            particleVolume.instanceMatrix.needsUpdate = true;
+            scene.add(particleVolume);
+
+            console.log(`Generated ${count} textured cube particles`);
+        }
+
+        function createMaterialForFace(face) {
+            if (faceTextures[face]) {
+                return new THREE.MeshStandardMaterial({
+                    map: faceTextures[face],
+                    roughness: 0.7,
+                    metalness: 0.3
+                });
+            } else {
+                // Default dark material for faces without textures
+                return new THREE.MeshStandardMaterial({
+                    color: 0x222222,
+                    roughness: 0.9,
+                    metalness: 0.1
+                });
+            }
+        }
+
+        // === MOUSE CONTROLS ===
+        function setupMouseControls() {
             let isDragging = false;
             let previousMousePosition = { x: 0, y: 0 };
 
@@ -160,13 +449,13 @@
             });
 
             renderer.domElement.addEventListener('mousemove', (e) => {
-                if (isDragging && particles) {
+                if (isDragging && particleVolume) {
                     const deltaMove = {
                         x: e.offsetX - previousMousePosition.x,
                         y: e.offsetY - previousMousePosition.y
                     };
-                    particles.rotation.y += deltaMove.x * 0.005;
-                    particles.rotation.x += deltaMove.y * 0.005;
+                    particleVolume.rotation.y += deltaMove.x * 0.005;
+                    particleVolume.rotation.x += deltaMove.y * 0.005;
                 }
                 previousMousePosition = { x: e.offsetX, y: e.offsetY };
             });
@@ -180,192 +469,37 @@
                 camera.position.z += e.deltaY * 0.1;
                 camera.position.z = Math.max(50, Math.min(1000, camera.position.z));
             });
-
-            // Sliders
-            ['size', 'density', 'depth'].forEach(id => {
-                const slider = document.getElementById(id);
-                slider.addEventListener('input', () => {
-                    updateValueDisplay(id);
-                });
-            });
         }
 
-        function updateValueDisplay(param) {
-            const value = parseFloat(document.getElementById(param).value);
-            const display = document.getElementById('val-' + param);
-            if (param === 'density') {
-                display.textContent = Math.round(value) + 'X';
-            } else {
-                display.textContent = value.toFixed(1) + (param === 'depth' ? 'X' : '');
-            }
-        }
-
-        function setupFileInput() {
-            const fileInput = document.getElementById('file-input');
-            const preview = document.getElementById('preview');
-
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file && file.type.startsWith('image/')) {
-                    loadImage(file);
-                }
-            });
-
-            preview.addEventListener('click', () => {
-                fileInput.click();
-            });
-
-            // Drag and drop
-            preview.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                preview.style.borderColor = 'rgba(255,255,255,0.5)';
-            });
-
-            preview.addEventListener('dragleave', () => {
-                preview.style.borderColor = 'rgba(255,255,255,0.1)';
-            });
-
-            preview.addEventListener('drop', (e) => {
-                e.preventDefault();
-                preview.style.borderColor = 'rgba(255,255,255,0.1)';
-                const file = e.dataTransfer.files[0];
-                if (file && file.type.startsWith('image/')) {
-                    loadImage(file);
-                }
-            });
-        }
-
-        function loadImage(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    currentImage = img;
-                    document.getElementById('preview').innerHTML = '<img src="' + e.target.result + '">';
-                    document.getElementById('preview').classList.add('loaded');
-                    document.getElementById('ui').classList.add('loaded');
-                    document.getElementById('controls').classList.remove('hidden');
-                    generate(img);
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function generate(img) {
-            // Remove previous particles
-            if (particles) {
-                scene.remove(particles);
-                if (particles.geometry) particles.geometry.dispose();
-                if (particles.material) particles.material.dispose();
-            }
-
-            // Read parameters
-            pointSize = parseFloat(document.getElementById('size').value);
-            particleDensity = parseInt(document.getElementById('density').value);
-            depthMultiplier = parseFloat(document.getElementById('depth').value);
-
-            const TARGET_SIZE = 512;
-            const step = Math.max(1, Math.floor(10 / particleDensity));
-            const canvas = document.createElement('canvas');
-            canvas.width = TARGET_SIZE;
-            canvas.height = TARGET_SIZE;
-            const ctx = canvas.getContext('2d');
-
-            // Center crop to square
-            const sourceSize = Math.min(img.width, img.height);
-            const offsetX = (img.width - sourceSize) / 2;
-            const offsetY = (img.height - sourceSize) / 2;
-            ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
-
-            const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
-            const data = imageData.data;
-
-            // Create particles (1 pixel = 1 cube)
-            const positions = [];
-            const colors = [];
-
-            const scaleFactor = 0.5;
-            const halfSize = TARGET_SIZE / 2;
-            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
-
-            for (let y = 0; y < TARGET_SIZE; y += step) {
-                for (let x = 0; x < TARGET_SIZE; x += step) {
-                    const i = (y * TARGET_SIZE + x) * 4;
-                    const alpha = data[i + 3];
-
-                    if (alpha > 30) {
-                        const px = (x - halfSize) * scaleFactor;
-                        const py = -(y - halfSize) * scaleFactor;
-                        const pz = (Math.random() - 0.5) * depthSpread;
-
-                        positions.push(px, py, pz);
-
-                        colors.push(
-                            data[i] / 255,
-                            data[i + 1] / 255,
-                            data[i + 2] / 255
-                        );
-                    }
-                }
-            }
-
-            // Create InstancedMesh with cubes
-            const count = positions.length / 3;
-            const size = pointSize * 3;
-            const geometry = new THREE.BoxGeometry(size, size, size);
-            const material = new THREE.MeshStandardMaterial({
-                flatShading: true,
-                roughness: 0.7,
-                metalness: 0.3
-            });
-
-            particles = new THREE.InstancedMesh(geometry, material, count);
-
-            const matrix = new THREE.Matrix4();
-            const color = new THREE.Color();
-
-            for (let i = 0; i < count; i++) {
-                matrix.setPosition(
-                    positions[i * 3],
-                    positions[i * 3 + 1],
-                    positions[i * 3 + 2]
-                );
-                particles.setMatrixAt(i, matrix);
-                color.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]);
-                particles.setColorAt(i, color);
-            }
-
-            particles.instanceMatrix.needsUpdate = true;
-            scene.add(particles);
-
-            console.log(`Generated ${count} cube particles`);
-        }
-
+        // === UTILITY FUNCTIONS ===
         function applySettings() {
-            if (currentImage) {
-                generate(currentImage);
+            if (Object.values(faceImages).some(img => img !== null)) {
+                generateVolume();
             }
         }
 
         function resetCamera() {
             camera.position.set(0, 0, 300);
-            if (particles) {
-                particles.rotation.set(0, 0, 0);
+            camera.lookAt(0, 0, 0);
+            if (particleVolume) {
+                particleVolume.rotation.set(0, 0, 0);
             }
         }
 
+        // === ANIMATION LOOP ===
         function animate() {
             requestAnimationFrame(animate);
             renderer.render(scene, camera);
         }
 
+        // === RESIZE ===
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
+        // Start
         init();
     </script>
 </body>
