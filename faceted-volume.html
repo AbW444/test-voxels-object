@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Faceted Volume - Textured Cube Pixels</title>
+    <title>Faceted Volume - Pixel Cube</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -79,7 +79,7 @@
 <body>
     <a href="index.html" id="title-link">
         <div id="title">Volumetric Particles</div>
-        <div id="subtitle">6 Faces — Textured Cube Pixels</div>
+        <div id="subtitle">6 Faces — Pixel Cubes</div>
     </a>
 
     <div id="canvas"></div>
@@ -166,11 +166,6 @@
         // === GLOBAL STATE ===
         let scene, camera, renderer, particleVolume;
         let selectedFace = null;
-        let faceTextures = {
-            px: null, nx: null,  // +X, -X (right, left)
-            py: null, ny: null,  // +Y, -Y (top, bottom)
-            pz: null, nz: null   // +Z, -Z (front, back)
-        };
         let faceImages = {
             px: null, nx: null,
             py: null, ny: null,
@@ -252,7 +247,6 @@
                 if (confirm('Clear all face images?')) {
                     Object.keys(faceImages).forEach(face => {
                         faceImages[face] = null;
-                        faceTextures[face] = null;
                         const preview = document.getElementById('preview-' + face);
                         preview.innerHTML = '—';
                         preview.classList.remove('loaded');
@@ -289,24 +283,6 @@
                 img.onload = function() {
                     faceImages[face] = img;
 
-                    // Create texture from image
-                    const canvas = document.createElement('canvas');
-                    const TARGET_SIZE = 512;
-                    canvas.width = TARGET_SIZE;
-                    canvas.height = TARGET_SIZE;
-                    const ctx = canvas.getContext('2d');
-
-                    // Center crop to square
-                    const sourceSize = Math.min(img.width, img.height);
-                    const offsetX = (img.width - sourceSize) / 2;
-                    const offsetY = (img.height - sourceSize) / 2;
-                    ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
-
-                    // Create THREE.js texture
-                    const texture = new THREE.CanvasTexture(canvas);
-                    texture.needsUpdate = true;
-                    faceTextures[face] = texture;
-
                     // Update preview
                     const preview = document.getElementById('preview-' + face);
                     preview.innerHTML = '<img src="' + ev.target.result + '">';
@@ -330,13 +306,7 @@
             if (particleVolume) {
                 scene.remove(particleVolume);
                 if (particleVolume.geometry) particleVolume.geometry.dispose();
-                if (particleVolume.material) {
-                    if (Array.isArray(particleVolume.material)) {
-                        particleVolume.material.forEach(m => m.dispose());
-                    } else {
-                        particleVolume.material.dispose();
-                    }
-                }
+                if (particleVolume.material) particleVolume.material.dispose();
             }
 
             // Read parameters
@@ -344,21 +314,16 @@
             density = parseInt(document.getElementById('density').value);
             depthMultiplier = parseFloat(document.getElementById('depth').value);
 
-            // Determine grid size based on density of all loaded images
             const TARGET_SIZE = 512;
             const step = Math.max(1, Math.floor(10 / density));
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
             const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
 
-            // Collect all pixel positions (we'll use the first loaded image to determine positions)
-            const positions = [];
-            let referenceImageProcessed = false;
-
-            // Process first available image to get positions
-            for (let face in faceImages) {
-                const img = faceImages[face];
-                if (img && !referenceImageProcessed) {
+            // Extract pixel data for all faces
+            const facePixelData = {};
+            Object.entries(faceImages).forEach(([face, img]) => {
+                if (img) {
                     const canvas = document.createElement('canvas');
                     canvas.width = TARGET_SIZE;
                     canvas.height = TARGET_SIZE;
@@ -367,76 +332,133 @@
                     const offsetX = (img.width - sourceSize) / 2;
                     const offsetY = (img.height - sourceSize) / 2;
                     ctx.drawImage(img, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
-                    const data = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+                    facePixelData[face] = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
+                }
+            });
 
-                    for (let v = 0; v < TARGET_SIZE; v += step) {
-                        for (let u = 0; u < TARGET_SIZE; u += step) {
-                            const i = (v * TARGET_SIZE + u) * 4;
-                            const alpha = data[i + 3];
+            // Collect pixel positions and colors per face
+            const pixelData = [];  // Each entry: {u, v, px, py, pz, colors: {px, nx, py, ny, pz, nz}}
 
-                            if (alpha > 30) {
-                                const px = (u - halfSize) * scaleFactor;
-                                const py = -(v - halfSize) * scaleFactor;
-                                const pz = (Math.random() - 0.5) * depthSpread;
-                                positions.push(px, py, pz);
-                            }
-                        }
+            // Use first loaded image to determine grid
+            const referenceData = facePixelData[Object.keys(facePixelData)[0]];
+
+            for (let v = 0; v < TARGET_SIZE; v += step) {
+                for (let u = 0; u < TARGET_SIZE; u += step) {
+                    const i = (v * TARGET_SIZE + u) * 4;
+                    const alpha = referenceData[i + 3];
+
+                    if (alpha > 30) {
+                        const px = (u - halfSize) * scaleFactor;
+                        const py = -(v - halfSize) * scaleFactor;
+                        const pz = (Math.random() - 0.5) * depthSpread;
+
+                        const colors = {};
+
+                        // Get color from each face's image at this UV position
+                        Object.entries(facePixelData).forEach(([face, data]) => {
+                            const idx = (v * TARGET_SIZE + u) * 4;
+                            colors[face] = {
+                                r: data[idx] / 255,
+                                g: data[idx + 1] / 255,
+                                b: data[idx + 2] / 255
+                            };
+                        });
+
+                        pixelData.push({ u, v, px, py, pz, colors });
                     }
-                    referenceImageProcessed = true;
-                    break;
                 }
             }
 
-            // Create materials for each face
-            // THREE.js BoxGeometry face order: [+X, -X, +Y, -Y, +Z, -Z]
-            const materials = [
-                createMaterialForFace('px'),  // Right
-                createMaterialForFace('nx'),  // Left
-                createMaterialForFace('py'),  // Top
-                createMaterialForFace('ny'),  // Bottom
-                createMaterialForFace('pz'),  // Front
-                createMaterialForFace('nz')   // Back
-            ];
+            // Create geometry with face index attribute
+            const geometry = new THREE.BoxGeometry(cubeSize * 3, cubeSize * 3, cubeSize * 3);
 
-            // Create InstancedMesh with cubes
-            const count = positions.length / 3;
-            const size = cubeSize * 3;
-            const geometry = new THREE.BoxGeometry(size, size, size);
+            // Add faceIndex attribute to identify which face each vertex belongs to
+            const positions = geometry.attributes.position;
+            const faceIndices = new Float32Array(positions.count);
 
-            particleVolume = new THREE.InstancedMesh(geometry, materials, count);
+            // BoxGeometry has 24 vertices (4 per face), 6 faces
+            // Face order: +X, -X, +Y, -Y, +Z, -Z
+            for (let i = 0; i < 6; i++) {
+                for (let j = 0; j < 4; j++) {
+                    faceIndices[i * 4 + j] = i;
+                }
+            }
+
+            geometry.setAttribute('faceIndex', new THREE.BufferAttribute(faceIndices, 1));
+
+            // Create instanced attribute for face colors (6 colors × 3 channels = 18 floats per instance)
+            const count = pixelData.length;
+            const faceColorsArray = new Float32Array(count * 18);
+
+            const faceOrder = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
+
+            for (let i = 0; i < count; i++) {
+                const pixel = pixelData[i];
+
+                for (let faceIdx = 0; faceIdx < 6; faceIdx++) {
+                    const faceName = faceOrder[faceIdx];
+                    const color = pixel.colors[faceName] || { r: 0.1, g: 0.1, b: 0.1 };
+
+                    const baseIdx = i * 18 + faceIdx * 3;
+                    faceColorsArray[baseIdx] = color.r;
+                    faceColorsArray[baseIdx + 1] = color.g;
+                    faceColorsArray[baseIdx + 2] = color.b;
+                }
+            }
+
+            geometry.setAttribute('faceColors', new THREE.InstancedBufferAttribute(faceColorsArray, 18));
+
+            // Custom shader material
+            const material = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute float faceIndex;
+                    attribute vec3 faceColors[6];
+
+                    varying vec3 vColor;
+                    varying vec3 vNormal;
+
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+
+                        // Select color based on face index
+                        int idx = int(faceIndex);
+                        vColor = faceColors[idx];
+
+                        vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    varying vec3 vNormal;
+
+                    void main() {
+                        // Simple lighting
+                        vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
+                        float diff = max(dot(vNormal, lightDir), 0.0);
+                        vec3 ambient = vec3(0.6);
+                        vec3 lighting = ambient + diff * 0.4;
+
+                        gl_FragColor = vec4(vColor * lighting, 1.0);
+                    }
+                `
+            });
+
+            // Create InstancedMesh
+            particleVolume = new THREE.InstancedMesh(geometry, material, count);
 
             const matrix = new THREE.Matrix4();
 
             for (let i = 0; i < count; i++) {
-                matrix.setPosition(
-                    positions[i * 3],
-                    positions[i * 3 + 1],
-                    positions[i * 3 + 2]
-                );
+                const pixel = pixelData[i];
+                matrix.setPosition(pixel.px, pixel.py, pixel.pz);
                 particleVolume.setMatrixAt(i, matrix);
             }
 
             particleVolume.instanceMatrix.needsUpdate = true;
             scene.add(particleVolume);
 
-            console.log(`Generated ${count} textured cube particles`);
-        }
-
-        function createMaterialForFace(face) {
-            if (faceTextures[face]) {
-                return new THREE.MeshStandardMaterial({
-                    map: faceTextures[face],
-                    roughness: 0.7,
-                    metalness: 0.3
-                });
-            } else {
-                // Default dark material for faces without textures
-                return new THREE.MeshStandardMaterial({
-                    color: 0x222222,
-                    roughness: 0.9,
-                    metalness: 0.1
-                });
-            }
+            console.log(`Generated ${count} pixel cubes`);
         }
 
         // === MOUSE CONTROLS ===
