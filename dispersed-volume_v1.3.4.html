@@ -947,9 +947,13 @@
 
                 // Generate if both videos are loaded
                 if (currentDepthVideo) {
-                    videoElement.play();
-                    currentDepthVideo.play();
                     generate(videoElement, currentDepthVideo);
+                    // v1.3.4 — Force videos to play and update button
+                    videoElement.play().then(() => {
+                        currentDepthVideo.play();
+                        const btn = document.querySelector('#video-controls .video-control-btn');
+                        if (btn) btn.textContent = '⏸ Pause';
+                    }).catch(err => console.warn('Autoplay blocked:', err));
                 }
             };
         }
@@ -969,9 +973,13 @@
 
                 // Generate if both videos are loaded
                 if (currentVideo) {
-                    currentVideo.play();
-                    depthElement.play();
                     generate(currentVideo, depthElement);
+                    // v1.3.4 — Force videos to play and update button
+                    currentVideo.play().then(() => {
+                        depthElement.play();
+                        const btn = document.querySelector('#video-controls .video-control-btn');
+                        if (btn) btn.textContent = '⏸ Pause';
+                    }).catch(err => console.warn('Autoplay blocked:', err));
                 }
             };
         }
@@ -1416,17 +1424,7 @@
 
         // v1.3.4 — Update particle colors from current video frames (volumetric aware + FIXED hideBlack sync)
         function updateColorsFromVideo() {
-            if (!currentVideo || !currentDepthVideo || !videoSamplingCanvas || !depthSamplingCanvas || !videoSamplingData || !particles) {
-                console.log('updateColorsFromVideo SKIP:', {
-                    hasVideo: !!currentVideo,
-                    hasDepthVideo: !!currentDepthVideo,
-                    hasCanvas: !!videoSamplingCanvas,
-                    hasDepthCanvas: !!depthSamplingCanvas,
-                    hasData: !!videoSamplingData,
-                    hasParticles: !!particles
-                });
-                return;
-            }
+            if (!currentVideo || !currentDepthVideo || !videoSamplingCanvas || !depthSamplingCanvas || !videoSamplingData || !particles) return;
 
             const { step, TARGET_SIZE, scaleFactor, halfSize, depthMultiplier } = videoSamplingData;
 
@@ -1499,7 +1497,6 @@
                 const pixelIndices = particles.userData.pixelIndices;
 
                 if (pixelIndices) {
-                    let updateCount = 0;
                     for (let i = 0; i < pixelIndices.length; i++) {
                         const pixelIdx = pixelIndices[i];
                         if (pixelIdx < pixelColors.length) {
@@ -1508,10 +1505,8 @@
                             colors[i * 3] = Math.min(1.0, (pixelColor.r / 255) * brightness);
                             colors[i * 3 + 1] = Math.min(1.0, (pixelColor.g / 255) * brightness);
                             colors[i * 3 + 2] = Math.min(1.0, (pixelColor.b / 255) * brightness);
-                            updateCount++;
                         }
                     }
-                    console.log('3D colors updated:', updateCount, 'particles, pixelColors:', pixelColors.length);
                 }
                 particles.instanceColor.needsUpdate = true;
 
@@ -1521,7 +1516,6 @@
                 const pixelIndices = geometry.userData.pixelIndices;
 
                 if (pixelIndices) {
-                    let updateCount = 0;
                     for (let i = 0; i < pixelIndices.length; i++) {
                         const pixelIdx = pixelIndices[i];
                         if (pixelIdx < pixelColors.length) {
@@ -1530,10 +1524,8 @@
                             colors[i * 3] = Math.min(1.0, (pixelColor.r / 255) * brightness);
                             colors[i * 3 + 1] = Math.min(1.0, (pixelColor.g / 255) * brightness);
                             colors[i * 3 + 2] = Math.min(1.0, (pixelColor.b / 255) * brightness);
-                            updateCount++;
                         }
                     }
-                    console.log('2D colors updated:', updateCount, 'particles, pixelColors:', pixelColors.length);
                 }
                 geometry.attributes.color.needsUpdate = true;
             }
