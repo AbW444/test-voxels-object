@@ -307,6 +307,11 @@
         let regenerateTimeout;
         let videoTexture = null;
 
+        // Video sampling data for continuous updates
+        let videoSamplingCanvas = null;
+        let videoSamplingCtx = null;
+        let videoSamplingData = null;
+
         // Real-time regeneration with debounce
         function scheduleRegenerate() {
             clearTimeout(regenerateTimeout);
@@ -701,10 +706,26 @@
             // Normalize video to fixed size for consistent volume
             const TARGET_SIZE = 1000;
             const step = Math.max(1, Math.floor(10 / particleDensity));
-            const canvas = document.createElement('canvas');
-            canvas.width = TARGET_SIZE;
-            canvas.height = TARGET_SIZE;
-            const ctx = canvas.getContext('2d');
+
+            // Create or reuse sampling canvas for continuous video updates
+            if (!videoSamplingCanvas) {
+                videoSamplingCanvas = document.createElement('canvas');
+                videoSamplingCanvas.width = TARGET_SIZE;
+                videoSamplingCanvas.height = TARGET_SIZE;
+                videoSamplingCtx = videoSamplingCanvas.getContext('2d');
+            }
+
+            const canvas = videoSamplingCanvas;
+            const ctx = videoSamplingCtx;
+
+            // Store sampling data for continuous updates
+            videoSamplingData = {
+                step: step,
+                TARGET_SIZE: TARGET_SIZE,
+                scaleFactor: 0.5,
+                halfSize: TARGET_SIZE / 2,
+                depthMultiplier: depthMultiplier
+            };
 
             // Crop to center square and resize to TARGET_SIZE
             const videoWidth = video.videoWidth;
@@ -909,11 +930,81 @@
             document.getElementById('file-input').click();
         }
 
+        // Update particle colors from current video frame
+        function updateColorsFromVideo() {
+            if (!currentVideo || !videoSamplingCanvas || !videoSamplingData || !particles) return;
+
+            const { step, TARGET_SIZE, scaleFactor, halfSize, depthMultiplier } = videoSamplingData;
+
+            // Draw current video frame to canvas
+            const videoWidth = currentVideo.videoWidth;
+            const videoHeight = currentVideo.videoHeight;
+            const sourceSize = Math.min(videoWidth, videoHeight);
+            const offsetX = (videoWidth - sourceSize) / 2;
+            const offsetY = (videoHeight - sourceSize) / 2;
+
+            videoSamplingCtx.drawImage(currentVideo, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const imageData = videoSamplingCtx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            const data = imageData.data;
+
+            let particleIndex = 0;
+
+            // Collect new colors
+            const newColors = [];
+            for (let y = 0; y < TARGET_SIZE; y += step) {
+                for (let x = 0; x < TARGET_SIZE; x += step) {
+                    const i = (y * TARGET_SIZE + x) * 4;
+                    const alpha = data[i + 3];
+
+                    if (alpha > 30) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        const maxColor = Math.max(r, g, b);
+
+                        // Skip if hideBlack and below threshold (but keep same particle count)
+                        if (hideBlack && maxColor < blackThreshold) {
+                            newColors.push(0, 0, 0);
+                        } else {
+                            // Update color with brightness boost
+                            newColors.push(
+                                Math.min(1.0, (r / 255) * brightness),
+                                Math.min(1.0, (g / 255) * brightness),
+                                Math.min(1.0, (b / 255) * brightness)
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Update colors based on mode
+            if (is3DMode && particles.instanceColor) {
+                // 3D Mode: Update instance colors
+                const colors = particles.instanceColor.array;
+                for (let i = 0; i < newColors.length; i++) {
+                    colors[i] = newColors[i];
+                }
+                particles.instanceColor.needsUpdate = true;
+            } else if (geometry && geometry.attributes.color) {
+                // 2D Mode: Update vertex colors
+                const colors = geometry.attributes.color.array;
+                for (let i = 0; i < newColors.length; i++) {
+                    colors[i] = newColors[i];
+                }
+                geometry.attributes.color.needsUpdate = true;
+            }
+        }
+
         // Animation with subtle breathing movement and video texture updates
         function animate() {
             requestAnimationFrame(animate);
 
             time += 0.001 * breathSpeed;
+
+            // Update particle colors from current video frame (both 2D and 3D modes)
+            if (currentVideo) {
+                updateColorsFromVideo();
+            }
 
             // Update video texture
             if (videoTexture && currentVideo) {
