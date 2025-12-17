@@ -1001,7 +1001,7 @@
             document.getElementById('file-input').click();
         }
 
-        // Update particle colors from current video frame
+        // Update particle colors and luminance-based depth from current video frame
         function updateColorsFromVideo() {
             if (!currentVideo || !videoSamplingCanvas || !videoSamplingData || !particles) return;
 
@@ -1018,10 +1018,14 @@
             const imageData = videoSamplingCtx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
             const data = imageData.data;
 
+            // Calculate depth spread (same as in generate)
+            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
+
             let particleIndex = 0;
 
-            // Collect new colors
+            // Collect new colors and depths
             const newColors = [];
+            const newDepths = [];
             for (let y = 0; y < TARGET_SIZE; y += step) {
                 for (let x = 0; x < TARGET_SIZE; x += step) {
                     const i = (y * TARGET_SIZE + x) * 4;
@@ -1032,6 +1036,11 @@
                         const g = data[i + 1];
                         const b = data[i + 2];
                         const maxColor = Math.max(r, g, b);
+
+                        // v1.3.1 — Update luminance-based depth in real-time
+                        const luminance = (r + g + b) / (3 * 255);
+                        const pz = (luminance - 0.5) * depthSpread;
+                        newDepths.push(pz);
 
                         // Skip if hideBlack and below threshold (but keep same particle count)
                         if (hideBlack && maxColor < blackThreshold) {
@@ -1048,21 +1057,37 @@
                 }
             }
 
-            // Update colors based on mode
+            // Update colors and depths based on mode
             if (is3DMode && particles.instanceColor) {
-                // 3D Mode: Update instance colors
+                // 3D Mode: Update instance colors and initial depths
                 const colors = particles.instanceColor.array;
                 for (let i = 0; i < newColors.length; i++) {
                     colors[i] = newColors[i];
                 }
                 particles.instanceColor.needsUpdate = true;
+
+                // Update initialZ for depth animation
+                if (particles.userData.initialZ) {
+                    for (let i = 0; i < newDepths.length; i++) {
+                        particles.userData.initialZ[i] = newDepths[i];
+                    }
+                }
             } else if (geometry && geometry.attributes.color) {
-                // 2D Mode: Update vertex colors
+                // 2D Mode: Update vertex colors and initial depths
                 const colors = geometry.attributes.color.array;
                 for (let i = 0; i < newColors.length; i++) {
                     colors[i] = newColors[i];
                 }
                 geometry.attributes.color.needsUpdate = true;
+
+                // Update initialZ attribute for depth animation
+                if (geometry.attributes.initialZ) {
+                    const initialZArray = geometry.attributes.initialZ.array;
+                    for (let i = 0; i < newDepths.length; i++) {
+                        initialZArray[i] = newDepths[i];
+                    }
+                    geometry.attributes.initialZ.needsUpdate = true;
+                }
             }
         }
 
