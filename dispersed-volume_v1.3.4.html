@@ -502,7 +502,7 @@
         let COLOR_UPDATE_FPS = 15;             // Throttle color updates for performance
 
         // v1.3.4 — Throttling for updateColorsFromVideo
-        let lastColorUpdate = 0;
+        let lastColorUpdate = -1000; // Initialize to force first update
 
         // v1.3.3 — Gaussian random number generator (Box-Muller transform)
         function gaussianRandom() {
@@ -1529,6 +1529,9 @@
 
             // v1.3.4 — Throttle updateColorsFromVideo to COLOR_UPDATE_FPS
             if (currentVideo && currentDepthVideo) {
+                // Ensure timestamp is valid, fallback to performance.now()
+                if (!timestamp) timestamp = performance.now();
+
                 const elapsed = timestamp - lastColorUpdate;
                 const updateInterval = 1000 / COLOR_UPDATE_FPS;
 
