@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Dispersed Volume - Prototype 1.3.5</title>
+    <!-- Version 1.3.5 - Volumetric depth CONTINUOUS (no throttling, pure real-time) -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               background: #000; color: #fff; overflow: hidden; }
+
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+              z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+              padding: 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+              max-width: 500px; width: 90%; transition: all 0.4s ease; }
+
+        #ui.loaded { top: auto; bottom: 20px; left: auto; right: 20px;
+                     transform: none; max-width: 360px; width: auto; padding: 24px; }
+
+        #title-link { position: fixed; top: 20px; left: 20px; z-index: 100;
+                      text-decoration: none; color: #fff; transition: opacity 0.2s; }
+        #title-link:hover { opacity: 1 !important; }
+
+        #title { font-size: 18px; font-weight: 600; opacity: 0.7;
+                 text-transform: uppercase; letter-spacing: 2px; }
+
+        #subtitle { font-size: 11px; font-weight: 400; opacity: 0.5;
+                    margin-top: 4px; letter-spacing: 0.5px;
+                    text-transform: none; }
+
+        button { display: block; width: 100%; margin: 8px 0; padding: 14px;
+                 background: rgba(255,255,255,0.1); color: #fff;
+                 border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+                 cursor: pointer; font-size: 12px; font-weight: 600;
+                 transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+        button:hover { background: rgba(255,255,255,0.2); }
+        button:active { transform: scale(0.98); }
+
+        button.small { padding: 8px; font-size: 10px; opacity: 0.7; }
+        button.small:hover { opacity: 1; }
+
+        .preview { width: 100%; aspect-ratio: 1; border-radius: 6px; margin: 8px 0;
+                   display: flex; align-items: center; justify-content: center;
+                   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+                   overflow: hidden; font-size: 10px; opacity: 0.4; }
+        .preview video { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        .preview.loaded { opacity: 1; }
+
+        input[type="file"] { display: none; }
+
+        label { font-size: 11px; font-weight: 600; margin-top: 16px; display: block;
+                text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.7; }
+
+        .hidden { display: none !important; }
+
+        #controls { margin-top: 16px; padding-top: 16px;
+                    border-top: 1px solid rgba(255,255,255,0.15); }
+
+        .slider { width: 100%; height: 4px; border-radius: 2px;
+                  background: rgba(255,255,255,0.15); outline: none;
+                  -webkit-appearance: none; margin: 10px 0; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+                                         width: 18px; height: 18px; border-radius: 50%;
+                                         background: #fff; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%;
+                                     background: #fff; cursor: pointer; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+
+        .value { font-family: 'Courier New', monospace; font-weight: 700; font-size: 11px;
+                 cursor: pointer; padding: 2px 6px; border-radius: 3px;
+                 transition: background 0.2s; }
+        .value:hover { background: rgba(255,255,255,0.1); }
+        .value-input { font-family: 'Courier New', monospace; font-weight: 700; font-size: 11px;
+                       background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+                       color: #fff; padding: 2px 6px; border-radius: 3px; width: 60px;
+                       text-align: center; }
+
+        .param-row { margin-bottom: 20px; }
+        .param-header { display: flex; justify-content: space-between; align-items: center;
+                        margin-bottom: 8px; }
+        .param-header label { margin: 0; }
+        .param-controls { display: flex; gap: 4px; align-items: center; }
+
+        .arrow-btn { width: 20px; height: 20px; padding: 0; margin: 0;
+                     background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+                     border-radius: 4px; color: #fff; font-size: 10px; cursor: pointer;
+                     display: flex; align-items: center; justify-content: center;
+                     transition: all 0.15s; line-height: 1; }
+        .arrow-btn:hover { background: rgba(255,255,255,0.2); }
+        .arrow-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
+
+        .slider-wrapper { position: relative; }
+        .slider-wrapper .slider { margin: 0; }
+        .center-mark { position: absolute; top: 50%; transform: translateY(-50%);
+                       width: 2px; height: 12px; background: rgba(255,255,255,0.4);
+                       pointer-events: none; border-radius: 1px; }
+
+        .hint { font-size: 9px; opacity: 0.3; margin-top: 10px; text-align: center;
+                font-style: italic; }
+
+        #shape-selector { position: fixed; top: 20px; right: 20px; z-index: 100;
+                          display: flex; gap: 8px; background: rgba(0,0,0,0.75);
+                          backdrop-filter: blur(10px); padding: 8px; border-radius: 8px;
+                          border: 1px solid rgba(255,255,255,0.2); }
+
+        .shape-btn { width: 40px; height: 40px; background: rgba(255,255,255,0.1);
+                     border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+                     color: #fff; font-size: 20px; cursor: pointer; transition: all 0.2s;
+                     display: flex; align-items: center; justify-content: center;
+                     padding: 0; margin: 0; }
+        .shape-btn:hover { background: rgba(255,255,255,0.2); transform: none; }
+        .shape-btn.active { background: rgba(255,255,255,0.3);
+                            border-color: rgba(255,255,255,0.5); }
+
+        #mode-3d-btn { width: auto; padding: 0 12px; font-size: 10px; margin-left: 8px;
+                       border-left: 1px solid rgba(255,255,255,0.3); }
+
+        /* Version selector */
+        #version-selector { position: fixed; bottom: 20px; left: 20px; z-index: 100;
+                           background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+                           padding: 8px 12px; border-radius: 6px;
+                           border: 1px solid rgba(255,255,255,0.2);
+                           font-size: 10px; cursor: pointer; transition: all 0.2s; }
+        #version-selector:hover { background: rgba(0,0,0,0.85); }
+
+        #version-menu { position: fixed; bottom: 60px; left: 20px; z-index: 99;
+                       background: rgba(0,0,0,0.9); backdrop-filter: blur(10px);
+                       padding: 8px; border-radius: 6px;
+                       border: 1px solid rgba(255,255,255,0.2);
+                       display: none; }
+        #version-menu.show { display: block; }
+
+        .version-item { padding: 8px 12px; cursor: pointer; font-size: 10px;
+                       border-radius: 4px; margin: 2px 0; transition: all 0.2s;
+                       white-space: nowrap; }
+        .version-item:hover { background: rgba(255,255,255,0.1); }
+        .version-item.current { background: rgba(255,255,255,0.15); font-weight: 600; }
+
+        /* Video controls */
+        .video-controls { margin-top: 8px; display: flex; gap: 4px; }
+        .video-control-btn { padding: 8px 12px; font-size: 10px; margin: 0; }
+
+        /* Hidden video element */
+        .hidden-video { position: absolute; left: -9999px; }
+
+        /* Volumetric Debug Panel */
+        #volumetric-panel { position: fixed; top: 80px; left: 20px; z-index: 100;
+                           background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+                           padding: 16px; border-radius: 8px;
+                           border: 1px solid rgba(255,255,255,0.2);
+                           min-width: 280px; display: none; }
+        #volumetric-panel.show { display: block; }
+        #volumetric-panel .panel-title { font-size: 10px; font-weight: 600;
+                                         text-transform: uppercase; letter-spacing: 1px;
+                                         margin-bottom: 12px; opacity: 0.7;
+                                         border-bottom: 1px solid rgba(255,255,255,0.2);
+                                         padding-bottom: 8px; }
+        #volumetric-panel .param-row { margin-bottom: 16px; }
+        #volumetric-panel .param-header label { font-size: 9px; }
+        #volumetric-panel .value { font-size: 10px; }
+        #volumetric-panel .hint { margin-top: 8px; font-size: 8px; }
+
+        #volumetric-toggle { position: fixed; top: 80px; left: 20px; z-index: 101;
+                            background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+                            padding: 8px 12px; border-radius: 6px;
+                            border: 1px solid rgba(255,255,255,0.2);
+                            font-size: 10px; cursor: pointer; transition: all 0.2s;
+                            text-transform: uppercase; letter-spacing: 0.8px; }
+        #volumetric-toggle:hover { background: rgba(0,0,0,0.9); }
+        #volumetric-toggle.active { background: rgba(255,255,255,0.2); }
+
+        .stats-info { font-size: 9px; opacity: 0.5; margin-top: 8px;
+                     font-family: 'Courier New', monospace; }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="title-link">
+        <div id="title">Volumetric Particles</div>
+        <div id="subtitle">v1.3.5 — Video projection volumétrique (continuous)</div>
+    </a>
+
+    <!-- Volumetric Panel Toggle Button -->
+    <div id="volumetric-toggle">Volumetric (V)</div>
+
+    <!-- Volumetric Debug Panel -->
+    <div id="volumetric-panel">
+        <div class="panel-title">Volumetric Parameters</div>
+
+        <div class="param-row">
+            <div class="param-header">
+                <label>DEPTH LAYERS</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="depthLayers" data-dir="down">▼</button>
+                    <span class="value" id="val-depthLayers" data-param="depthLayers">4</span>
+                    <button class="arrow-btn" data-param="depthLayers" data-dir="up">▲</button>
+                </div>
+            </div>
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="depthLayers" min="2" max="12" step="1" value="4">
+            </div>
+        </div>
+
+        <div class="param-row">
+            <div class="param-header">
+                <label>THICKNESS</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="depthThickness" data-dir="down">▼</button>
+                    <span class="value" id="val-depthThickness" data-param="depthThickness">20.0</span>
+                    <button class="arrow-btn" data-param="depthThickness" data-dir="up">▲</button>
+                </div>
+            </div>
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="depthThickness" min="0.1" max="100" step="0.5" value="20.0">
+            </div>
+        </div>
+
+        <div class="param-row">
+            <div class="param-header">
+                <label>FALLOFF</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="depthFalloff" data-dir="down">▼</button>
+                    <span class="value" id="val-depthFalloff" data-param="depthFalloff">0.5</span>
+                    <button class="arrow-btn" data-param="depthFalloff" data-dir="up">▲</button>
+                </div>
+            </div>
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="depthFalloff" min="0" max="1.0" step="0.05" value="0.5">
+            </div>
+        </div>
+
+        <div class="param-row">
+            <div class="param-header">
+                <label>XY JITTER</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="depthJitterXY" data-dir="down">▼</button>
+                    <span class="value" id="val-depthJitterXY" data-param="depthJitterXY">0.5</span>
+                    <button class="arrow-btn" data-param="depthJitterXY" data-dir="up">▲</button>
+                </div>
+            </div>
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="depthJitterXY" min="0" max="5.0" step="0.1" value="0.5">
+            </div>
+        </div>
+
+        <div class="param-row">
+            <div class="param-header">
+                <label>DEPTH GAMMA</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="depthGamma" data-dir="down">▼</button>
+                    <span class="value" id="val-depthGamma" data-param="depthGamma">1.6</span>
+                    <button class="arrow-btn" data-param="depthGamma" data-dir="up">▲</button>
+                </div>
+            </div>
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="depthGamma" min="0.6" max="3.0" step="0.05" value="1.6">
+            </div>
+        </div>
+
+        <div class="param-row">
+            <div class="param-header">
+                <label>DEPTH DITHER</label>
+                <div class="param-controls">
+                    <button class="arrow-btn" data-param="depthDither" data-dir="down">▼</button>
+                    <span class="value" id="val-depthDither" data-param="depthDither">0.015</span>
+                    <button class="arrow-btn" data-param="depthDither" data-dir="up">▲</button>
+                </div>
+            </div>
+            <div class="slider-wrapper">
+                <input type="range" class="slider" id="depthDither" min="0.0" max="0.06" step="0.001" value="0.015">
+            </div>
+        </div>
+
+        <div class="stats-info" id="particle-stats">Particles: 0</div>
+        <p class="hint">Press 'V' to toggle this panel</p>
+    </div>
+
+    <div id="shape-selector" class="hidden">
+        <button class="shape-btn active" data-shape="circle" title="Circle">●</button>
+        <button class="shape-btn" data-shape="square" title="Square">■</button>
+        <button class="shape-btn" data-shape="diamond" title="Diamond">◆</button>
+        <button class="shape-btn" data-shape="star" title="Star">★</button>
+        <button class="shape-btn" id="mode-3d-btn" title="Toggle 3D Mode">3D</button>
+    </div>
+    <div id="canvas"></div>
+
+    <!-- Hidden video elements for color and depth map -->
+    <div class="hidden-video">
+        <video id="video-source" loop muted playsinline></video>
+        <video id="depth-source" loop muted playsinline></video>
+    </div>
+
+    <!-- Version Selector -->
+    <div id="version-selector">
+        <span>v<span id="current-version">1.3.5</span></span>
+    </div>
+    <div id="version-menu">
+        <div class="version-item" data-version="1.0" data-file="dispersed-volume.html">v1.0 — Image dispersée</div>
+        <div class="version-item" data-version="1.3" data-file="dispersed-volume_v1.3.html">v1.3 — Video dispersée</div>
+        <div class="version-item" data-version="1.3.1" data-file="dispersed-volume_v1.3.1.html">v1.3.1 — Luminance depth</div>
+        <div class="version-item" data-version="1.3.2" data-file="dispersed-volume_v1.3.2.html">v1.3.2 — Depth map</div>
+        <div class="version-item" data-version="1.3.3" data-file="dispersed-volume_v1.3.3.html">v1.3.3 — Volumetric depth</div>
+        <div class="version-item" data-version="1.3.4" data-file="dispersed-volume_v1.3.4.html">v1.3.4 — Volumetric fixed</div>
+        <div class="version-item" data-version="1.3.5" data-file="dispersed-volume_v1.3.5.html">v1.3.5 — Volumetric continuous</div>
+    </div>
+
+    <div id="ui">
+        <div id="load-section">
+            <div class="preview" id="preview">Empty</div>
+            <button onclick="document.getElementById('file-input').click()">Load Color Video</button>
+            <input type="file" id="file-input" accept="video/*">
+            <button onclick="document.getElementById('depth-input').click()" class="small">Load Depth Video</button>
+            <input type="file" id="depth-input" accept="video/*">
+            <div class="video-controls hidden" id="video-controls">
+                <button class="video-control-btn" onclick="toggleVideo()">▶ Play</button>
+            </div>
+        </div>
+
+        <div id="controls" class="hidden">
+            <div class="param-row">
+                <div class="param-header">
+                    <label>POINT SIZE</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="size" data-dir="down">▼</button>
+                        <span class="value" id="val-size" data-param="size">1.0</span>
+                        <button class="arrow-btn" data-param="size" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="size" min="0.1" max="2.0" step="0.01" value="1.0">
+                    <div class="center-mark" id="size-mark-2d" style="left: 47.4%;"></div>
+                    <div class="center-mark" id="size-mark-3d" style="left: 13.2%; display: none;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>PARTICLE DENSITY</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="density" data-dir="down">▼</button>
+                        <span class="value" id="val-density" data-param="density">7X</span>
+                        <button class="arrow-btn" data-param="density" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="density" min="1" max="15" step="1" value="7">
+                    <div class="center-mark" style="left: 42.9%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>DEPTH SPREAD</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="depth" data-dir="down">▼</button>
+                        <span class="value" id="val-depth" data-param="depth">1.0X</span>
+                        <button class="arrow-btn" data-param="depth" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
+                    <div class="center-mark" style="left: 31.0%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>BREATH SPEED</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="breath" data-dir="down">▼</button>
+                        <span class="value" id="val-breath" data-param="breath">1.0</span>
+                        <button class="arrow-btn" data-param="breath" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="breath" min="0" max="3.0" step="0.1" value="1.0">
+                    <div class="center-mark" style="left: 33.3%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>BRIGHTNESS</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="brightness" data-dir="down">▼</button>
+                        <span class="value" id="val-brightness" data-param="brightness">1.8</span>
+                        <button class="arrow-btn" data-param="brightness" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="brightness" min="0.5" max="3.0" step="0.1" value="1.8">
+                    <div class="center-mark" style="left: 52%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>FLOW</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="flow" data-dir="down">▼</button>
+                        <span class="value" id="val-flow" data-param="flow">0.0</span>
+                        <button class="arrow-btn" data-param="flow" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="flow" min="0" max="3.0" step="0.1" value="0.0">
+                    <div class="center-mark" style="left: 0%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="hide-black" style="width: 14px; height: 14px; cursor: pointer;">
+                        <span>HIDE BLACK</span>
+                    </label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="blackThreshold" data-dir="down">▼</button>
+                        <span class="value" id="val-blackThreshold" data-param="blackThreshold">30</span>
+                        <button class="arrow-btn" data-param="blackThreshold" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="blackThreshold" min="0" max="128" step="1" value="30">
+                    <div class="center-mark" style="left: 23.4%;"></div>
+                </div>
+            </div>
+
+            <button onclick="applySettings()">Apply</button>
+            <button onclick="resetToDefaults()">Reset to Defaults</button>
+            <button onclick="resetCamera()">Reset Camera</button>
+            <button class="small" onclick="changeVideo()">Change Color Video</button>
+            <button class="small" onclick="changeDepthVideo()">Change Depth Video</button>
+        </div>
+
+        <p class="hint">Drag to rotate • Scroll to zoom</p>
+    </div>
+
+    <script src="three.min.js"></script>
+    <script>
+        // ========== UTILITY FUNCTIONS ==========
+        // v1.3.4 — Clamp utility function
+        function clamp(x, min, max) {
+            return Math.max(min, Math.min(max, x));
+        }
+
+        // ========== GLOBAL VARIABLES ==========
+        let scene, camera, renderer, particles;
+        let geometry, material;
+        let breathSpeed = 0.5;
+        let depthMultiplier = 1.0;
+        let pointSize = 2.0;
+        let particleDensity = 1;
+        let brightness = 1.8;
+        let hideBlack = false;
+        let blackThreshold = 30;
+        let time = 0;
+        let flowIntensity = 0.0;
+        let currentVideo = null;
+        let currentDepthVideo = null;
+        let currentShape = 'circle';
+        let is3DMode = false;
+        let regenerateTimeout;
+        let videoTexture = null;
+
+        // Video sampling data for continuous updates
+        let videoSamplingCanvas = null;
+        let videoSamplingCtx = null;
+        let videoSamplingData = null;
+
+        // Depth map sampling data
+        let depthSamplingCanvas = null;
+        let depthSamplingCtx = null;
+
+        // Flow movement data - stores random offsets for each particle
+        let flowOffsets = null;
+
+        // v1.3.3 — Volumetric depth parameters
+        let DEPTH_LAYERS = 4;                  // Number of particles per pixel (2-12)
+        let DEPTH_THICKNESS = 20.0;            // Base thickness of volumetric distribution
+        let DEPTH_FALLOFF = 0.5;               // Falloff parameter (0-1)
+        let DEPTH_JITTER_XY = 0.5;             // Subpixel jitter to break columns
+        const MAX_PARTICLES = 500000;          // Safety limit
+
+        // v1.3.4/v1.3.5 — Depth quality parameters
+        let DEPTH_GAMMA = 1.6;                 // Gamma correction for depth (reduces banding)
+        let DEPTH_DITHER = 0.015;              // Dithering amount to smooth depth transitions
+
+        // v1.3.3 — Gaussian random number generator (Box-Muller transform)
+        function gaussianRandom() {
+            let u1 = Math.random();
+            let u2 = Math.random();
+            // Avoid log(0)
+            if (u1 < 1e-10) u1 = 1e-10;
+            return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+        }
+
+        // Real-time regeneration with debounce
+        function scheduleRegenerate() {
+            clearTimeout(regenerateTimeout);
+            regenerateTimeout = setTimeout(() => {
+                if (currentVideo && currentDepthVideo) generate(currentVideo, currentDepthVideo);
+            }, 150);
+        }
+
+        // Parameter control system - including volumetric parameters
+        const paramConfigs = {
+            size: { min: 0.1, max: 2.0, step: 0.01, decimals: 2, suffix: '' },
+            density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
+            depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
+            breath: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            brightness: { min: 0.5, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            flow: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' },
+            // Volumetric parameters
+            depthLayers: { min: 2, max: 12, step: 1, decimals: 0, suffix: '' },
+            depthThickness: { min: 0.1, max: 100, step: 0.5, decimals: 1, suffix: '' },
+            depthFalloff: { min: 0, max: 1.0, step: 0.05, decimals: 2, suffix: '' },
+            depthJitterXY: { min: 0, max: 5.0, step: 0.1, decimals: 1, suffix: '' },
+            // v1.3.4 — New depth quality parameters
+            depthGamma: { min: 0.6, max: 3.0, step: 0.05, decimals: 2, suffix: '' },
+            depthDither: { min: 0.0, max: 0.06, step: 0.001, decimals: 3, suffix: '' }
+        };
+
+        function updateValueDisplay(param) {
+            const slider = document.getElementById(param);
+            const valueSpan = document.getElementById('val-' + param);
+            const config = paramConfigs[param];
+            const value = parseFloat(slider.value);
+            const formatted = value.toFixed(config.decimals);
+            valueSpan.textContent = formatted + config.suffix;
+        }
+
+        function setupSliderListeners() {
+            Object.keys(paramConfigs).forEach(param => {
+                const slider = document.getElementById(param);
+                if (!slider) return; // Skip if slider doesn't exist
+
+                slider.addEventListener('input', function() {
+                    updateValueDisplay(param);
+
+                    // Update volumetric parameters in real-time
+                    if (param === 'depthLayers') {
+                        DEPTH_LAYERS = parseInt(slider.value);
+                        scheduleRegenerate();
+                    } else if (param === 'depthThickness') {
+                        DEPTH_THICKNESS = parseFloat(slider.value);
+                        scheduleRegenerate();
+                    } else if (param === 'depthFalloff') {
+                        DEPTH_FALLOFF = parseFloat(slider.value);
+                        scheduleRegenerate();
+                    } else if (param === 'depthJitterXY') {
+                        DEPTH_JITTER_XY = parseFloat(slider.value);
+                        scheduleRegenerate();
+                    } else if (param === 'depthGamma') {
+                        DEPTH_GAMMA = parseFloat(slider.value);
+                        scheduleRegenerate();
+                    } else if (param === 'depthDither') {
+                        DEPTH_DITHER = parseFloat(slider.value);
+                        scheduleRegenerate();
+                    } else if (param === 'flow') {
+                        // Flow is real-time, doesn't need regeneration
+                        flowIntensity = parseFloat(slider.value);
+                    } else {
+                        scheduleRegenerate();
+                    }
+                });
+                updateValueDisplay(param);
+            });
+        }
+
+        // Double-click to edit values
+        function setupValueEditing() {
+            document.querySelectorAll('.value[data-param]').forEach(valueSpan => {
+                valueSpan.addEventListener('dblclick', function() {
+                    const param = this.dataset.param;
+                    const config = paramConfigs[param];
+                    const slider = document.getElementById(param);
+                    const currentValue = parseFloat(slider.value);
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.className = 'value-input';
+                    input.min = config.min;
+                    input.max = config.max;
+                    input.step = config.step;
+                    input.value = currentValue.toFixed(config.decimals);
+
+                    this.replaceWith(input);
+                    input.focus();
+                    input.select();
+
+                    function finishEdit() {
+                        let newValue = parseFloat(input.value);
+                        newValue = Math.max(config.min, Math.min(config.max, newValue));
+                        slider.value = newValue;
+                        updateValueDisplay(param);
+
+                        // Update volumetric parameters
+                        if (param === 'depthLayers') {
+                            DEPTH_LAYERS = parseInt(newValue);
+                            scheduleRegenerate();
+                        } else if (param === 'depthThickness') {
+                            DEPTH_THICKNESS = newValue;
+                            scheduleRegenerate();
+                        } else if (param === 'depthFalloff') {
+                            DEPTH_FALLOFF = newValue;
+                            scheduleRegenerate();
+                        } else if (param === 'depthJitterXY') {
+                            DEPTH_JITTER_XY = newValue;
+                            scheduleRegenerate();
+                        } else if (param === 'depthGamma') {
+                            DEPTH_GAMMA = newValue;
+                            scheduleRegenerate();
+                        } else if (param === 'depthDither') {
+                            DEPTH_DITHER = newValue;
+                            scheduleRegenerate();
+                        } else if (param === 'flow') {
+                            flowIntensity = newValue;
+                        } else {
+                            scheduleRegenerate();
+                        }
+                        input.replaceWith(valueSpan);
+                    }
+
+                    input.addEventListener('blur', finishEdit);
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') finishEdit();
+                        if (e.key === 'Escape') {
+                            input.replaceWith(valueSpan);
+                        }
+                    });
+                });
+            });
+        }
+
+        // Arrow buttons with acceleration
+        let arrowInterval;
+        let arrowAcceleration = 1;
+        let arrowStartTime;
+
+        function setupArrowButtons() {
+            document.querySelectorAll('.arrow-btn').forEach(btn => {
+                const param = btn.dataset.param;
+                const direction = btn.dataset.dir === 'up' ? 1 : -1;
+                const config = paramConfigs[param];
+
+                function incrementValue() {
+                    const slider = document.getElementById(param);
+                    let value = parseFloat(slider.value);
+
+                    const holdTime = Date.now() - arrowStartTime;
+                    let speed = 1;
+                    if (holdTime > 2000) speed = 10;
+                    else if (holdTime > 1000) speed = 5;
+                    else if (holdTime > 500) speed = 2;
+
+                    value += direction * config.step * speed;
+                    value = Math.max(config.min, Math.min(config.max, value));
+
+                    slider.value = value;
+                    updateValueDisplay(param);
+
+                    // Update volumetric parameters
+                    if (param === 'depthLayers') {
+                        DEPTH_LAYERS = parseInt(value);
+                        scheduleRegenerate();
+                    } else if (param === 'depthThickness') {
+                        DEPTH_THICKNESS = value;
+                        scheduleRegenerate();
+                    } else if (param === 'depthFalloff') {
+                        DEPTH_FALLOFF = value;
+                        scheduleRegenerate();
+                    } else if (param === 'depthJitterXY') {
+                        DEPTH_JITTER_XY = value;
+                        scheduleRegenerate();
+                    } else if (param === 'depthGamma') {
+                        DEPTH_GAMMA = value;
+                        scheduleRegenerate();
+                    } else if (param === 'depthDither') {
+                        DEPTH_DITHER = value;
+                        scheduleRegenerate();
+                    } else if (param === 'flow') {
+                        flowIntensity = value;
+                    } else {
+                        scheduleRegenerate();
+                    }
+                }
+
+                btn.addEventListener('mousedown', function() {
+                    arrowStartTime = Date.now();
+                    incrementValue();
+                    arrowInterval = setInterval(incrementValue, 100);
+                });
+
+                btn.addEventListener('mouseup', stopArrow);
+                btn.addEventListener('mouseleave', stopArrow);
+
+                function stopArrow() {
+                    clearInterval(arrowInterval);
+                }
+            });
+        }
+
+        // Video control - synchronize both videos
+        function toggleVideo() {
+            const video = document.getElementById('video-source');
+            const depthVideo = document.getElementById('depth-source');
+            const btn = document.querySelector('#video-controls .video-control-btn');
+
+            if (video.paused) {
+                video.play();
+                if (depthVideo) depthVideo.play();
+                btn.textContent = '⏸ Pause';
+            } else {
+                video.pause();
+                if (depthVideo) depthVideo.pause();
+                btn.textContent = '▶ Play';
+            }
+        }
+
+        // Shape texture generators
+        function createCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 64, 64);
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(32, 32, 32, 0, Math.PI * 2);
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSquareTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 64, 64);
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, 64, 64);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createDiamondTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 64, 64);
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(32, 0);
+            ctx.lineTo(64, 32);
+            ctx.lineTo(32, 64);
+            ctx.lineTo(0, 32);
+            ctx.closePath();
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createStarTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 64, 64);
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+                const x = 32 + Math.cos(angle) * 30;
+                const y = 32 + Math.sin(angle) * 30;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function getShapeTexture(shape) {
+            switch(shape) {
+                case 'circle': return createCircleTexture();
+                case 'square': return createSquareTexture();
+                case 'diamond': return createDiamondTexture();
+                case 'star': return createStarTexture();
+                default: return createCircleTexture();
+            }
+        }
+
+        // Init Three.js
+        function init() {
+            if (typeof THREE === 'undefined') {
+                alert('THREE.js failed to load.');
+                return;
+            }
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+            camera.position.z = 300;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas').appendChild(renderer.domElement);
+
+            // Add lighting for 3D mode
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight1.position.set(1, 1, 1);
+            scene.add(directionalLight1);
+
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            directionalLight2.position.set(-1, -1, -0.5);
+            scene.add(directionalLight2);
+
+            // Mouse control
+            let isDrag = false;
+            let prevMouse = { x: 0, y: 0 };
+
+            renderer.domElement.onmousedown = function(e) {
+                isDrag = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            };
+
+            renderer.domElement.onmousemove = function(e) {
+                if (!isDrag || !particles) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                particles.rotation.y += dx * 0.005;
+                particles.rotation.x += dy * 0.005;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            };
+
+            document.onmouseup = function() {
+                isDrag = false;
+            };
+
+            // Zoom with mouse wheel
+            renderer.domElement.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const zoomSpeed = 0.1;
+                const delta = e.deltaY > 0 ? 1 : -1;
+                camera.position.z += delta * zoomSpeed * camera.position.z;
+                camera.position.z = Math.max(50, Math.min(1000, camera.position.z));
+            });
+
+            // Keyboard shortcut for volumetric panel (V key)
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'v' || e.key === 'V') {
+                    const panel = document.getElementById('volumetric-panel');
+                    const toggle = document.getElementById('volumetric-toggle');
+                    panel.classList.toggle('show');
+                    toggle.classList.toggle('active');
+                }
+            });
+
+            // Setup parameter controls
+            setupSliderListeners();
+            setupValueEditing();
+            setupArrowButtons();
+
+            animate();
+        }
+
+        // Load color video function
+        function loadVideoFile(file) {
+            if (!file || !file.type.startsWith('video/')) return;
+
+            const videoElement = document.getElementById('video-source');
+            const url = URL.createObjectURL(file);
+
+            videoElement.src = url;
+            videoElement.load();
+
+            videoElement.onloadeddata = function() {
+                const isFirstLoad = (currentVideo === null);
+                currentVideo = videoElement;
+
+                // Show preview
+                document.getElementById('preview').innerHTML = '<video src="' + url + '" muted loop playsinline style="max-width:100%;max-height:100%;"></video>';
+                document.getElementById('preview').classList.add('loaded');
+                document.getElementById('preview').querySelector('video').play();
+
+                // Show controls
+                document.getElementById('video-controls').classList.remove('hidden');
+
+                // Reset sliders to default ONLY on first load
+                if (isFirstLoad) {
+                    document.getElementById('size').value = 1.0;
+                    document.getElementById('density').value = 7;
+                    document.getElementById('depth').value = 1.0;
+                    document.getElementById('breath').value = 1.0;
+                    document.getElementById('brightness').value = 1.8;
+
+                    updateValueDisplay('size');
+                    updateValueDisplay('density');
+                    updateValueDisplay('depth');
+                    updateValueDisplay('breath');
+                    updateValueDisplay('brightness');
+
+                    document.getElementById('load-section').classList.add('hidden');
+                    document.getElementById('controls').classList.remove('hidden');
+                    document.getElementById('ui').classList.add('loaded');
+                    document.getElementById('shape-selector').classList.remove('hidden');
+                }
+
+                // Generate if both videos are loaded
+                if (currentDepthVideo) {
+                    generate(videoElement, currentDepthVideo);
+                    // v1.3.4 — Force videos to play and update button
+                    videoElement.play().then(() => {
+                        currentDepthVideo.play();
+                        const btn = document.querySelector('#video-controls .video-control-btn');
+                        if (btn) btn.textContent = '⏸ Pause';
+                    }).catch(err => console.warn('Autoplay blocked:', err));
+                }
+            };
+        }
+
+        // Load depth video function
+        function loadDepthVideoFile(file) {
+            if (!file || !file.type.startsWith('video/')) return;
+
+            const depthElement = document.getElementById('depth-source');
+            const url = URL.createObjectURL(file);
+
+            depthElement.src = url;
+            depthElement.load();
+
+            depthElement.onloadeddata = function() {
+                currentDepthVideo = depthElement;
+
+                // Generate if both videos are loaded
+                if (currentVideo) {
+                    generate(currentVideo, depthElement);
+                    // v1.3.4 — Force videos to play and update button
+                    currentVideo.play().then(() => {
+                        depthElement.play();
+                        const btn = document.querySelector('#video-controls .video-control-btn');
+                        if (btn) btn.textContent = '⏸ Pause';
+                    }).catch(err => console.warn('Autoplay blocked:', err));
+                }
+            };
+        }
+
+        // File input change
+        document.getElementById('file-input').onchange = function(e) {
+            loadVideoFile(e.target.files[0]);
+        };
+
+        document.getElementById('depth-input').onchange = function(e) {
+            loadDepthVideoFile(e.target.files[0]);
+        };
+
+        // Drag & drop on preview area
+        const preview = document.getElementById('preview');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.5)';
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.1)';
+            });
+        });
+
+        preview.addEventListener('drop', function(e) {
+            const file = e.dataTransfer.files[0];
+            loadVideoFile(file);
+        });
+
+        // Global drag & drop on entire page
+        ['dragenter', 'dragover'].forEach(eventName => {
+            document.body.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.body.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('video/')) {
+                loadVideoFile(file);
+            }
+        });
+
+        // ========== v1.3.3/v1.3.4 — VOLUMETRIC DEPTH GENERATION ==========
+        function generate(video, depthVideo) {
+            if (typeof THREE === 'undefined') {
+                alert('THREE.js not loaded.');
+                return;
+            }
+
+            if (!depthVideo) {
+                alert('Please load a depth map video first.');
+                return;
+            }
+
+            // Read parameters from sliders
+            pointSize = parseFloat(document.getElementById('size').value);
+            particleDensity = parseInt(document.getElementById('density').value);
+            depthMultiplier = parseFloat(document.getElementById('depth').value);
+            breathSpeed = parseFloat(document.getElementById('breath').value);
+            brightness = parseFloat(document.getElementById('brightness').value);
+            flowIntensity = parseFloat(document.getElementById('flow').value);
+
+            // Normalize video to fixed size for consistent volume
+            const TARGET_SIZE = 1000;
+            let step = Math.max(1, Math.floor(10 / particleDensity));
+
+            // v1.3.3 — Auto-adjust step if layers would create too many particles
+            let estimatedParticles = Math.pow(TARGET_SIZE / step, 2) * DEPTH_LAYERS;
+            if (estimatedParticles > MAX_PARTICLES) {
+                // Increase step to reduce particle count
+                step = Math.ceil(Math.sqrt((Math.pow(TARGET_SIZE, 2) * DEPTH_LAYERS) / MAX_PARTICLES));
+                console.log(`Auto-adjusted step to ${step} to limit particles (estimated: ${estimatedParticles})`);
+            }
+
+            // Create or reuse sampling canvas for continuous video updates
+            if (!videoSamplingCanvas) {
+                videoSamplingCanvas = document.createElement('canvas');
+                videoSamplingCanvas.width = TARGET_SIZE;
+                videoSamplingCanvas.height = TARGET_SIZE;
+                // v1.3.4 — willReadFrequently for performance with getImageData
+                videoSamplingCtx = videoSamplingCanvas.getContext('2d', { willReadFrequently: true });
+            }
+
+            // Create or reuse depth sampling canvas
+            if (!depthSamplingCanvas) {
+                depthSamplingCanvas = document.createElement('canvas');
+                depthSamplingCanvas.width = TARGET_SIZE;
+                depthSamplingCanvas.height = TARGET_SIZE;
+                // v1.3.4 — willReadFrequently for performance with getImageData
+                depthSamplingCtx = depthSamplingCanvas.getContext('2d', { willReadFrequently: true });
+            }
+
+            const canvas = videoSamplingCanvas;
+            const ctx = videoSamplingCtx;
+            const depthCanvas = depthSamplingCanvas;
+            const depthCtx = depthSamplingCtx;
+
+            // Store sampling data for continuous updates
+            videoSamplingData = {
+                step: step,
+                TARGET_SIZE: TARGET_SIZE,
+                scaleFactor: 0.5,
+                halfSize: TARGET_SIZE / 2,
+                depthMultiplier: depthMultiplier
+            };
+
+            // Crop to center square and resize to TARGET_SIZE (color video)
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
+            const sourceSize = Math.min(videoWidth, videoHeight);
+            const offsetX = (videoWidth - sourceSize) / 2;
+            const offsetY = (videoHeight - sourceSize) / 2;
+
+            // Draw current frame to sample pixels
+            ctx.drawImage(video, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+
+            // Crop to center square and resize to TARGET_SIZE (depth video)
+            const depthVideoWidth = depthVideo.videoWidth;
+            const depthVideoHeight = depthVideo.videoHeight;
+            const depthSourceSize = Math.min(depthVideoWidth, depthVideoHeight);
+            const depthOffsetX = (depthVideoWidth - depthSourceSize) / 2;
+            const depthOffsetY = (depthVideoHeight - depthSourceSize) / 2;
+
+            // Draw current depth frame
+            depthCtx.drawImage(depthVideo, depthOffsetX, depthOffsetY, depthSourceSize, depthSourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+
+            const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            const data = imageData.data;
+
+            const depthImageData = depthCtx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            const depthData = depthImageData.data;
+
+            // v1.3.3 — Create MULTIPLE particles per pixel (volumetric)
+            const positions = [];
+            const colors = [];
+            const initialZ = [];
+            const pixelIndices = [];  // Track which pixel each particle belongs to
+
+            const scaleFactor = 0.5;
+            const halfSize = TARGET_SIZE / 2;
+
+            // Depth spread
+            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
+
+            let pixelCount = 0;
+
+            for (let y = 0; y < TARGET_SIZE; y += step) {
+                for (let x = 0; x < TARGET_SIZE; x += step) {
+                    const i = (y * TARGET_SIZE + x) * 4;
+                    const alpha = data[i + 3];
+
+                    // Only create particles if pixel is visible
+                    if (alpha > 30) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        const maxColor = Math.max(r, g, b);
+
+                        // v1.3.4 FIX — Skip black particles if hideBlack is enabled
+                        // CRITICAL: This must match the filtering in updateColorsFromVideo()
+                        // to maintain pixelIndices synchronization
+                        if (hideBlack && maxColor < blackThreshold) {
+                            continue;
+                        }
+
+                        // Base position (XY)
+                        const px = (x - halfSize) * scaleFactor;
+                        const py = -(y - halfSize) * scaleFactor;
+
+                        // v1.3.4 — Apply gamma and dither to depth for smoother transitions
+                        const depthPixel = depthData[i];  // Grayscale value 0-255
+                        let dn = depthPixel / 255;  // Normalize to [0, 1]
+
+                        // Apply dither to reduce banding
+                        dn = clamp(dn + (Math.random() - 0.5) * DEPTH_DITHER, 0, 1);
+
+                        // Apply gamma correction
+                        dn = Math.pow(dn, DEPTH_GAMMA);
+
+                        const depthNormalized = dn;
+
+                        // Map to depth range: zBase
+                        const zBase = (depthNormalized - 0.5) * depthSpread;
+
+                        // v1.3.3 — Calculate thickness based on depth with falloff
+                        const depthForThickness = 1.0 - depthNormalized;
+                        const edge0 = DEPTH_FALLOFF;
+                        const edge1 = 1.0;
+                        let t = (depthForThickness - edge0) / (edge1 - edge0);
+                        t = Math.max(0, Math.min(1, t));  // Clamp to [0, 1]
+                        const smoothstepValue = t * t * (3 - 2 * t);
+                        const thicknessLocal = DEPTH_THICKNESS * smoothstepValue;
+
+                        // v1.3.3 — Create DEPTH_LAYERS particles for this pixel
+                        for (let layer = 0; layer < DEPTH_LAYERS; layer++) {
+                            // Gaussian random offset in Z
+                            const offset = gaussianRandom() * thicknessLocal;
+                            const pz = zBase + offset;
+
+                            // v1.3.3 — Calculate weight for attenuation (Gaussian distribution)
+                            let weight = 1.0;
+                            if (thicknessLocal > 0) {
+                                weight = Math.exp(-0.5 * Math.pow(offset / thicknessLocal, 2));
+                            }
+                            // Clamp weight to avoid overly dim particles
+                            weight = Math.max(0.3, weight);
+
+                            // v1.3.3 — XY jitter to break columnar artifacts
+                            const jitterX = (Math.random() - 0.5) * DEPTH_JITTER_XY * 2;
+                            const jitterY = (Math.random() - 0.5) * DEPTH_JITTER_XY * 2;
+
+                            positions.push(px + jitterX, py + jitterY, pz);
+                            initialZ.push(pz);
+                            pixelIndices.push(pixelCount);  // Track which pixel this belongs to
+
+                            // Color with brightness and weight attenuation
+                            colors.push(
+                                Math.min(1.0, (r / 255) * brightness * weight),
+                                Math.min(1.0, (g / 255) * brightness * weight),
+                                Math.min(1.0, (b / 255) * brightness * weight)
+                            );
+                        }
+
+                        pixelCount++;
+                    }
+                }
+            }
+
+            // Update particle count display
+            document.getElementById('particle-stats').textContent = `Particles: ${positions.length / 3}`;
+
+            if (particles) {
+                scene.remove(particles);
+                if (particles.geometry) particles.geometry.dispose();
+                if (particles.material) {
+                    if (videoTexture) videoTexture.dispose();
+                    particles.material.dispose();
+                }
+            }
+
+            if (is3DMode) {
+                // 3D Mode: Use InstancedMesh with real 3D geometries
+                const count = positions.length / 3;
+                let baseGeometry;
+                const size = pointSize * 3;
+
+                switch(currentShape) {
+                    case 'square':
+                        baseGeometry = new THREE.BoxGeometry(size, size, size);
+                        break;
+                    case 'circle':
+                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
+                        break;
+                    case 'diamond':
+                        baseGeometry = new THREE.OctahedronGeometry(size * 0.5);
+                        break;
+                    case 'star':
+                        baseGeometry = new THREE.TetrahedronGeometry(size * 0.6);
+                        break;
+                    default:
+                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
+                }
+
+                material = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    flatShading: true,
+                    roughness: 0.7,
+                    metalness: 0.3,
+                    emissive: 0x000000,
+                    emissiveIntensity: 0.2
+                });
+
+                particles = new THREE.InstancedMesh(baseGeometry, material, count);
+                particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+                const instanceColors = new Float32Array(count * 3);
+                for (let i = 0; i < count; i++) {
+                    instanceColors[i * 3] = colors[i * 3];
+                    instanceColors[i * 3 + 1] = colors[i * 3 + 1];
+                    instanceColors[i * 3 + 2] = colors[i * 3 + 2];
+                }
+                particles.instanceColor = new THREE.InstancedBufferAttribute(instanceColors, 3);
+
+                const matrix = new THREE.Matrix4();
+                const color = new THREE.Color();
+
+                for (let i = 0; i < count; i++) {
+                    matrix.setPosition(
+                        positions[i * 3],
+                        positions[i * 3 + 1],
+                        positions[i * 3 + 2]
+                    );
+                    particles.setMatrixAt(i, matrix);
+                    color.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]);
+                    particles.setColorAt(i, color);
+                }
+
+                particles.instanceMatrix.needsUpdate = true;
+
+                particles.userData.initialZ = initialZ;
+                particles.userData.positions = positions;
+                particles.userData.pixelIndices = pixelIndices;
+                particles.userData.is3D = true;
+
+            } else {
+                // 2D Mode: Use Points with shape texture
+                geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                geometry.setAttribute('initialZ', new THREE.Float32BufferAttribute(initialZ, 1));
+
+                // Store pixel indices for color updates
+                geometry.userData.pixelIndices = pixelIndices;
+
+                // Create video texture
+                videoTexture = new THREE.VideoTexture(video);
+                videoTexture.minFilter = THREE.LinearFilter;
+                videoTexture.magFilter = THREE.LinearFilter;
+
+                const shapeTexture = getShapeTexture(currentShape);
+
+                material = new THREE.PointsMaterial({
+                    size: pointSize,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 1.0,
+                    sizeAttenuation: true,
+                    map: shapeTexture
+                });
+
+                particles = new THREE.Points(geometry, material);
+            }
+
+            scene.add(particles);
+
+            // Initialize flow offsets - random circular movement for each particle
+            const particleCount = positions.length / 3;
+            flowOffsets = [];
+            for (let i = 0; i < particleCount; i++) {
+                flowOffsets.push({
+                    phaseX: Math.random() * Math.PI * 2,
+                    phaseY: Math.random() * Math.PI * 2,
+                    speedX: 0.3 + Math.random() * 0.7,
+                    speedY: 0.3 + Math.random() * 0.7,
+                    radiusX: 2 + Math.random() * 8,
+                    radiusY: 2 + Math.random() * 8
+                });
+            }
+        }
+
+        function applySettings() {
+            if (!currentVideo) {
+                alert('No color video loaded');
+                return;
+            }
+            if (!currentDepthVideo) {
+                alert('No depth video loaded');
+                return;
+            }
+
+            generate(currentVideo, currentDepthVideo);
+        }
+
+        function resetToDefaults() {
+            document.getElementById('size').value = 1.0;
+            document.getElementById('density').value = 7;
+            document.getElementById('depth').value = 1.0;
+            document.getElementById('breath').value = 1.0;
+            document.getElementById('brightness').value = 1.8;
+            document.getElementById('flow').value = 0.0;
+            document.getElementById('blackThreshold').value = 30;
+            document.getElementById('hide-black').checked = false;
+            hideBlack = false;
+
+            // Reset volumetric parameters
+            document.getElementById('depthLayers').value = 4;
+            document.getElementById('depthThickness').value = 20.0;
+            document.getElementById('depthFalloff').value = 0.5;
+            document.getElementById('depthJitterXY').value = 0.5;
+            document.getElementById('depthGamma').value = 1.6;
+            document.getElementById('depthDither').value = 0.015;
+
+            DEPTH_LAYERS = 4;
+            DEPTH_THICKNESS = 20.0;
+            DEPTH_FALLOFF = 0.5;
+            DEPTH_JITTER_XY = 0.5;
+            DEPTH_GAMMA = 1.6;
+            DEPTH_DITHER = 0.015;
+
+            updateValueDisplay('size');
+            updateValueDisplay('density');
+            updateValueDisplay('depth');
+            updateValueDisplay('breath');
+            updateValueDisplay('brightness');
+            updateValueDisplay('flow');
+            updateValueDisplay('blackThreshold');
+            updateValueDisplay('depthLayers');
+            updateValueDisplay('depthThickness');
+            updateValueDisplay('depthFalloff');
+            updateValueDisplay('depthJitterXY');
+            updateValueDisplay('depthGamma');
+            updateValueDisplay('depthDither');
+
+            if (currentVideo && currentDepthVideo) {
+                generate(currentVideo, currentDepthVideo);
+            }
+        }
+
+        function resetCamera() {
+            camera.position.set(0, 0, 300);
+            camera.rotation.set(0, 0, 0);
+            if (particles) {
+                particles.rotation.set(0, 0, 0);
+            }
+        }
+
+        function changeVideo() {
+            document.getElementById('file-input').click();
+        }
+
+        function changeDepthVideo() {
+            document.getElementById('depth-input').click();
+        }
+
+        // v1.3.4 — Update particle colors from current video frames (volumetric aware + FIXED hideBlack sync)
+        function updateColorsFromVideo() {
+            if (!currentVideo || !currentDepthVideo || !videoSamplingCanvas || !depthSamplingCanvas || !videoSamplingData || !particles) return;
+
+            const { step, TARGET_SIZE, scaleFactor, halfSize, depthMultiplier } = videoSamplingData;
+
+            // Draw current color video frame to canvas
+            const videoWidth = currentVideo.videoWidth;
+            const videoHeight = currentVideo.videoHeight;
+            const sourceSize = Math.min(videoWidth, videoHeight);
+            const offsetX = (videoWidth - sourceSize) / 2;
+            const offsetY = (videoHeight - sourceSize) / 2;
+
+            videoSamplingCtx.drawImage(currentVideo, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const imageData = videoSamplingCtx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            const data = imageData.data;
+
+            // Draw current depth video frame to canvas
+            const depthVideoWidth = currentDepthVideo.videoWidth;
+            const depthVideoHeight = currentDepthVideo.videoHeight;
+            const depthSourceSize = Math.min(depthVideoWidth, depthVideoHeight);
+            const depthOffsetX = (depthVideoWidth - depthSourceSize) / 2;
+            const depthOffsetY = (depthVideoHeight - depthSourceSize) / 2;
+
+            depthSamplingCtx.drawImage(currentDepthVideo, depthOffsetX, depthOffsetY, depthSourceSize, depthSourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const depthImageData = depthSamplingCtx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            const depthData = depthImageData.data;
+
+            // Calculate depth spread (same as in generate)
+            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
+
+            let pixelIndex = 0;
+
+            // v1.3.4 FIX — Apply EXACT SAME filtering as generate() to maintain pixelIndices sync
+            // Collect new colors for each pixel (will be applied to all layers of that pixel)
+            const pixelColors = [];
+            for (let y = 0; y < TARGET_SIZE; y += step) {
+                for (let x = 0; x < TARGET_SIZE; x += step) {
+                    const i = (y * TARGET_SIZE + x) * 4;
+                    const alpha = data[i + 3];
+
+                    if (alpha > 30) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        const maxColor = Math.max(r, g, b);
+
+                        // v1.3.4 CRITICAL FIX — Apply same hideBlack filtering as in generate()
+                        // This was causing the "bandes/horizon" artifacts because pixelColors
+                        // and pixelIndices were out of sync when hideBlack was enabled.
+                        // In v1.3.3, black pixels were pushed to pixelColors but skipped in generate(),
+                        // causing a mismatch in indexing.
+                        if (hideBlack && maxColor < blackThreshold) {
+                            continue;  // Skip this pixel entirely, just like in generate()
+                        }
+
+                        // Depth for weight calculation (not used here but kept for consistency)
+                        const depthPixel = depthData[i];
+                        let dn = depthPixel / 255;
+                        dn = clamp(dn + (Math.random() - 0.5) * DEPTH_DITHER, 0, 1);
+                        dn = Math.pow(dn, DEPTH_GAMMA);
+                        const depthNormalized = dn;
+
+                        pixelColors.push({ r, g, b, depth: depthNormalized });
+                    }
+                }
+            }
+
+            // Update colors based on mode
+            if (is3DMode && particles.instanceColor) {
+                // 3D Mode: Update instance colors
+                const colors = particles.instanceColor.array;
+                const pixelIndices = particles.userData.pixelIndices;
+
+                if (pixelIndices) {
+                    for (let i = 0; i < pixelIndices.length; i++) {
+                        const pixelIdx = pixelIndices[i];
+                        if (pixelIdx < pixelColors.length) {
+                            const pixelColor = pixelColors[pixelIdx];
+
+                            colors[i * 3] = Math.min(1.0, (pixelColor.r / 255) * brightness);
+                            colors[i * 3 + 1] = Math.min(1.0, (pixelColor.g / 255) * brightness);
+                            colors[i * 3 + 2] = Math.min(1.0, (pixelColor.b / 255) * brightness);
+                        }
+                    }
+                }
+                particles.instanceColor.needsUpdate = true;
+
+            } else if (geometry && geometry.attributes.color) {
+                // 2D Mode: Update vertex colors
+                const colors = geometry.attributes.color.array;
+                const pixelIndices = geometry.userData.pixelIndices;
+
+                if (pixelIndices) {
+                    for (let i = 0; i < pixelIndices.length; i++) {
+                        const pixelIdx = pixelIndices[i];
+                        if (pixelIdx < pixelColors.length) {
+                            const pixelColor = pixelColors[pixelIdx];
+
+                            colors[i * 3] = Math.min(1.0, (pixelColor.r / 255) * brightness);
+                            colors[i * 3 + 1] = Math.min(1.0, (pixelColor.g / 255) * brightness);
+                            colors[i * 3 + 2] = Math.min(1.0, (pixelColor.b / 255) * brightness);
+                        }
+                    }
+                }
+                geometry.attributes.color.needsUpdate = true;
+            }
+        }
+
+        // v1.3.5 — Animation with CONTINUOUS real-time updates (NO throttling)
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += 0.001 * breathSpeed;
+
+            // v1.3.5 — Update colors EVERY frame for pure continuity (like v1.3.2)
+            if (currentVideo && currentDepthVideo) {
+                updateColorsFromVideo();
+            }
+
+            // Update video texture
+            if (videoTexture && currentVideo) {
+                videoTexture.needsUpdate = true;
+            }
+
+            if (particles && flowOffsets) {
+                if (particles.userData && particles.userData.is3D) {
+                    // 3D Mode: Update instance matrices for breathing and flow animation
+                    const initialZs = particles.userData.initialZ;
+                    const positions = particles.userData.positions;
+
+                    if (initialZs && positions && initialZs.length > 0) {
+                        const matrix = new THREE.Matrix4();
+                        const epsilon = 0.3 * breathSpeed;
+
+                        for (let i = 0; i < initialZs.length; i++) {
+                            const breathOffset = Math.sin(time + i * 0.01) * epsilon;
+                            const newZ = initialZs[i] + breathOffset;
+
+                            // Flow movement - circular organic motion
+                            let flowX = 0, flowY = 0;
+                            if (flowIntensity > 0 && flowOffsets[i]) {
+                                const offset = flowOffsets[i];
+                                flowX = Math.sin(time * offset.speedX + offset.phaseX) * offset.radiusX * flowIntensity;
+                                flowY = Math.cos(time * offset.speedY + offset.phaseY) * offset.radiusY * flowIntensity;
+                            }
+
+                            matrix.setPosition(
+                                positions[i * 3] + flowX,
+                                positions[i * 3 + 1] + flowY,
+                                newZ
+                            );
+                            particles.setMatrixAt(i, matrix);
+                        }
+                        particles.instanceMatrix.needsUpdate = true;
+                    }
+                } else if (geometry && geometry.attributes.position) {
+                    // 2D Mode: Update position attribute for breathing and flow animation
+                    const positions = geometry.attributes.position.array;
+                    const initialZs = geometry.attributes.initialZ.array;
+
+                    // Store initial positions if not already stored
+                    if (!geometry.userData.initialPositions) {
+                        geometry.userData.initialPositions = new Float32Array(positions.length);
+                        for (let i = 0; i < positions.length; i++) {
+                            geometry.userData.initialPositions[i] = positions[i];
+                        }
+                    }
+
+                    const initialPositions = geometry.userData.initialPositions;
+
+                    for (let i = 0; i < positions.length / 3; i++) {
+                        const epsilon = 0.3 * breathSpeed;
+                        const breathOffset = Math.sin(time + i * 0.01) * epsilon;
+
+                        // Flow movement - circular organic motion
+                        let flowX = 0, flowY = 0;
+                        if (flowIntensity > 0 && flowOffsets[i]) {
+                            const offset = flowOffsets[i];
+                            flowX = Math.sin(time * offset.speedX + offset.phaseX) * offset.radiusX * flowIntensity;
+                            flowY = Math.cos(time * offset.speedY + offset.phaseY) * offset.radiusY * flowIntensity;
+                        }
+
+                        positions[i * 3] = initialPositions[i * 3] + flowX;
+                        positions[i * 3 + 1] = initialPositions[i * 3 + 1] + flowY;
+                        positions[i * 3 + 2] = initialZs[i] + breathOffset;
+                    }
+
+                    geometry.attributes.position.needsUpdate = true;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Resize
+        window.onresize = function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Volumetric panel toggle button
+            document.getElementById('volumetric-toggle').addEventListener('click', function() {
+                const panel = document.getElementById('volumetric-panel');
+                this.classList.toggle('active');
+                panel.classList.toggle('show');
+            });
+
+            // Shape selector
+            document.querySelectorAll('.shape-btn[data-shape]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.shape-btn[data-shape]').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentShape = this.dataset.shape;
+                    if (currentVideo && currentDepthVideo) {
+                        generate(currentVideo, currentDepthVideo);
+                    }
+                });
+            });
+
+            // 3D Mode toggle
+            document.getElementById('mode-3d-btn').addEventListener('click', function() {
+                is3DMode = !is3DMode;
+                this.classList.toggle('active');
+
+                const mark2D = document.getElementById('size-mark-2d');
+                const mark3D = document.getElementById('size-mark-3d');
+                if (is3DMode) {
+                    mark2D.style.display = 'none';
+                    mark3D.style.display = 'block';
+                } else {
+                    mark2D.style.display = 'block';
+                    mark3D.style.display = 'none';
+                }
+
+                if (currentVideo && currentDepthVideo) {
+                    generate(currentVideo, currentDepthVideo);
+                }
+            });
+
+            // Hide black checkbox
+            document.getElementById('hide-black').addEventListener('change', function() {
+                hideBlack = this.checked;
+                scheduleRegenerate();
+            });
+
+            // Version selector
+            const VERSION = "1.3.5";
+            const versionSelector = document.getElementById('version-selector');
+            const versionMenu = document.getElementById('version-menu');
+
+            versionSelector.addEventListener('click', function(e) {
+                e.stopPropagation();
+                versionMenu.classList.toggle('show');
+            });
+
+            document.addEventListener('click', function() {
+                versionMenu.classList.remove('show');
+            });
+
+            document.querySelectorAll('.version-item').forEach(item => {
+                if (item.dataset.version === VERSION) {
+                    item.classList.add('current');
+                }
+
+                item.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const file = this.dataset.file;
+                    if (file && file !== 'dispersed-volume_v1.3.5.html') {
+                        window.location.href = file;
+                    }
+                });
+            });
+        });
+
+        // Start
+        window.onload = init;
+    </script>
+</body>
+</html>
