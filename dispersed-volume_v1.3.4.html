@@ -1132,6 +1132,7 @@
             const colors = [];
             const initialZ = [];
             const pixelIndices = [];  // Track which pixel each particle belongs to
+            const particleOffsets = [];  // v1.3.4 FIX — Store Z offset for each particle to preserve volumetric effect
 
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
@@ -1209,6 +1210,7 @@
                             positions.push(px + jitterX, py + jitterY, pz);
                             initialZ.push(pz);
                             pixelIndices.push(pixelCount);  // Track which pixel this belongs to
+                            particleOffsets.push(offset);  // v1.3.4 FIX — Store the Gaussian offset to preserve volume
 
                             // Color with brightness and weight attenuation
                             colors.push(
@@ -1297,6 +1299,7 @@
                 particles.userData.initialZ = initialZ;
                 particles.userData.positions = positions;
                 particles.userData.pixelIndices = pixelIndices;
+                particles.userData.particleOffsets = particleOffsets;  // v1.3.4 FIX — Store offsets
                 particles.userData.is3D = true;
 
             } else {
@@ -1308,6 +1311,7 @@
 
                 // Store pixel indices for color updates
                 geometry.userData.pixelIndices = pixelIndices;
+                geometry.userData.particleOffsets = particleOffsets;  // v1.3.4 FIX — Store offsets
 
                 // Create video texture
                 videoTexture = new THREE.VideoTexture(video);
@@ -1490,14 +1494,15 @@
                 }
             }
 
-            // v1.3.4 CRITICAL FIX — Update colors AND depths based on mode
+            // v1.3.4 CRITICAL FIX — Update colors AND depths based on mode (PRESERVING GAUSSIAN OFFSETS)
             if (is3DMode && particles.instanceColor) {
                 // 3D Mode: Update instance colors
                 const colors = particles.instanceColor.array;
                 const pixelIndices = particles.userData.pixelIndices;
                 const initialZs = particles.userData.initialZ;
+                const particleOffsets = particles.userData.particleOffsets;  // v1.3.4 FIX — Get stored offsets
 
-                if (pixelIndices) {
+                if (pixelIndices && particleOffsets) {
                     for (let i = 0; i < pixelIndices.length; i++) {
                         const pixelIdx = pixelIndices[i];
                         if (pixelIdx < pixelColors.length) {
@@ -1507,11 +1512,12 @@
                             colors[i * 3 + 1] = Math.min(1.0, (pixelColor.g / 255) * brightness);
                             colors[i * 3 + 2] = Math.min(1.0, (pixelColor.b / 255) * brightness);
 
-                            // v1.3.4 FIX — Update depth-based Z position from video
+                            // v1.3.4 FIX — Update depth-based Z position PRESERVING Gaussian offset
                             if (initialZs && i < initialZs.length) {
                                 const depthNorm = pixelColor.depth;
                                 const zBase = (depthNorm - 0.5) * depthSpread;
-                                initialZs[i] = zBase;
+                                const offset = particleOffsets[i];  // Preserve the Gaussian offset!
+                                initialZs[i] = zBase + offset;  // Apply new base + keep volumetric offset
                             }
                         }
                     }
@@ -1519,12 +1525,13 @@
                 particles.instanceColor.needsUpdate = true;
 
             } else if (geometry && geometry.attributes.color) {
-                // 2D Mode: Update vertex colors AND depths
+                // 2D Mode: Update vertex colors AND depths (PRESERVING GAUSSIAN OFFSETS)
                 const colors = geometry.attributes.color.array;
                 const pixelIndices = geometry.userData.pixelIndices;
                 const initialZArray = geometry.attributes.initialZ ? geometry.attributes.initialZ.array : null;
+                const particleOffsets = geometry.userData.particleOffsets;  // v1.3.4 FIX — Get stored offsets
 
-                if (pixelIndices) {
+                if (pixelIndices && particleOffsets) {
                     for (let i = 0; i < pixelIndices.length; i++) {
                         const pixelIdx = pixelIndices[i];
                         if (pixelIdx < pixelColors.length) {
@@ -1534,12 +1541,13 @@
                             colors[i * 3 + 1] = Math.min(1.0, (pixelColor.g / 255) * brightness);
                             colors[i * 3 + 2] = Math.min(1.0, (pixelColor.b / 255) * brightness);
 
-                            // v1.3.4 CRITICAL FIX — Update depth-based Z position from video
-                            // This is what v1.3.2 does and what was missing!
+                            // v1.3.4 CRITICAL FIX — Update depth-based Z position PRESERVING Gaussian offset
+                            // This preserves the volumetric "thickness" while updating from video
                             if (initialZArray && i < initialZArray.length) {
                                 const depthNorm = pixelColor.depth;
                                 const zBase = (depthNorm - 0.5) * depthSpread;
-                                initialZArray[i] = zBase;
+                                const offset = particleOffsets[i];  // Preserve the Gaussian offset!
+                                initialZArray[i] = zBase + offset;  // Apply new base + keep volumetric offset
                             }
                         }
                     }
