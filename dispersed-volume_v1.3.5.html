@@ -922,13 +922,28 @@
 
                 // Generate if both videos are loaded
                 if (currentDepthVideo) {
-                    // v1.3.5 — Play videos BEFORE generating to ensure frames are ready
-                    videoElement.play().then(() => {
-                        currentDepthVideo.play();
+                    // v1.3.5 SYNC FIX — Ensure both videos start at time 0 and play together
+                    videoElement.currentTime = 0;
+                    currentDepthVideo.currentTime = 0;
+
+                    // Wait for both videos to be ready, then generate and play simultaneously
+                    Promise.all([
+                        new Promise(resolve => {
+                            if (videoElement.readyState >= 2) resolve();
+                            else videoElement.addEventListener('canplay', resolve, { once: true });
+                        }),
+                        new Promise(resolve => {
+                            if (currentDepthVideo.readyState >= 2) resolve();
+                            else currentDepthVideo.addEventListener('canplay', resolve, { once: true });
+                        })
+                    ]).then(() => {
                         generate(videoElement, currentDepthVideo);
+                        // Play both videos simultaneously for perfect sync
+                        videoElement.play();
+                        currentDepthVideo.play();
                         const btn = document.querySelector('#video-controls .video-control-btn');
                         if (btn) btn.textContent = '⏸ Pause';
-                    }).catch(err => console.warn('Autoplay blocked:', err));
+                    }).catch(err => console.warn('Video sync error:', err));
                 }
             };
         }
@@ -948,13 +963,28 @@
 
                 // Generate if both videos are loaded
                 if (currentVideo) {
-                    // v1.3.5 — Play videos BEFORE generating to ensure frames are ready
-                    currentVideo.play().then(() => {
-                        depthElement.play();
+                    // v1.3.5 SYNC FIX — Ensure both videos start at time 0 and play together
+                    currentVideo.currentTime = 0;
+                    depthElement.currentTime = 0;
+
+                    // Wait for both videos to be ready, then generate and play simultaneously
+                    Promise.all([
+                        new Promise(resolve => {
+                            if (currentVideo.readyState >= 2) resolve();
+                            else currentVideo.addEventListener('canplay', resolve, { once: true });
+                        }),
+                        new Promise(resolve => {
+                            if (depthElement.readyState >= 2) resolve();
+                            else depthElement.addEventListener('canplay', resolve, { once: true });
+                        })
+                    ]).then(() => {
                         generate(currentVideo, depthElement);
+                        // Play both videos simultaneously for perfect sync
+                        currentVideo.play();
+                        depthElement.play();
                         const btn = document.querySelector('#video-controls .video-control-btn');
                         if (btn) btn.textContent = '⏸ Pause';
-                    }).catch(err => console.warn('Autoplay blocked:', err));
+                    }).catch(err => console.warn('Video sync error:', err));
                 }
             };
         }
