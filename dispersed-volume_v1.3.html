@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Dispersed Volume - Prototype 1.3</title>
-    <!-- Version 1.3 - Video projection instead of images -->
+    <!-- Version 1.3 - Video projection (simple, based on v1.0) -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -44,7 +44,7 @@
         .preview { width: 100%; aspect-ratio: 1; border-radius: 6px; margin: 8px 0;
                    display: flex; align-items: center; justify-content: center;
                    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
-                   overflow: hidden; font-size: 10px; opacity: 0.4; position: relative; }
+                   overflow: hidden; font-size: 10px; opacity: 0.4; }
         .preview video { max-width: 100%; max-height: 100%; object-fit: contain; }
 
         .preview.loaded { opacity: 1; }
@@ -117,10 +117,6 @@
         #mode-3d-btn { width: auto; padding: 0 12px; font-size: 10px; margin-left: 8px;
                        border-left: 1px solid rgba(255,255,255,0.3); }
 
-        /* Video controls */
-        .video-controls { margin-top: 8px; display: flex; gap: 4px; }
-        .video-control-btn { padding: 6px 12px; font-size: 10px; margin: 0; flex: 1; }
-
         /* Version selector */
         #version-selector { position: fixed; bottom: 20px; left: 20px; z-index: 100;
                            background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
@@ -142,25 +138,18 @@
         .version-item:hover { background: rgba(255,255,255,0.1); }
         .version-item.current { background: rgba(255,255,255,0.15); font-weight: 600; }
 
-        /* Video section */
-        .video-section { margin-bottom: 12px; padding-bottom: 12px;
-                        border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .video-label { font-size: 10px; opacity: 0.6; margin-bottom: 4px; }
-        .preview-small { width: 100%; aspect-ratio: 1; border-radius: 6px; margin: 4px 0;
-                        display: flex; align-items: center; justify-content: center;
-                        background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
-                        overflow: hidden; font-size: 9px; opacity: 0.3; position: relative; }
-        .preview-small video { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .preview-small.loaded { opacity: 1; }
+        /* Video controls */
+        .video-controls { margin-top: 8px; display: flex; gap: 4px; }
+        .video-control-btn { padding: 8px 12px; font-size: 10px; margin: 0; }
 
-        /* Hidden video elements */
+        /* Hidden video element */
         .hidden-video { position: absolute; left: -9999px; }
     </style>
 </head>
 <body>
     <a href="index.html" id="title-link">
         <div id="title">Volumetric Particles</div>
-        <div id="subtitle">v1.3 — Video projection</div>
+        <div id="subtitle">v1.3 — Video projection volumétrique</div>
     </a>
 
     <div id="shape-selector" class="hidden">
@@ -172,10 +161,9 @@
     </div>
     <div id="canvas"></div>
 
-    <!-- Hidden video elements for texture source -->
+    <!-- Hidden video element for texture source -->
     <div class="hidden-video">
-        <video id="video-front" loop muted playsinline></video>
-        <video id="video-back" loop muted playsinline></video>
+        <video id="video-source" loop muted playsinline></video>
     </div>
 
     <!-- Version Selector -->
@@ -183,31 +171,17 @@
         <span>v<span id="current-version">1.3</span></span>
     </div>
     <div id="version-menu">
-        <div class="version-item" data-version="1.0" data-file="dispersed-volume.html">v1.0 — Images</div>
-        <div class="version-item" data-version="1.2" data-file="dispersed-volume_v1.2.html">v1.2 — Images recto/verso</div>
-        <div class="version-item" data-version="1.3" data-file="dispersed-volume_v1.3.html">v1.3 — Videos</div>
+        <div class="version-item" data-version="1.0" data-file="dispersed-volume.html">v1.0 — Image dispersée</div>
+        <div class="version-item" data-version="1.3" data-file="dispersed-volume_v1.3.html">v1.3 — Video dispersée</div>
     </div>
 
     <div id="ui">
         <div id="load-section">
-            <div class="video-section">
-                <div class="video-label">Front Video (Face +Z)</div>
-                <div class="preview-small" id="preview-front">Empty</div>
-                <button onclick="document.getElementById('file-input-front').click()">Load Front Video</button>
-                <input type="file" id="file-input-front" accept="video/*">
-                <div class="video-controls hidden" id="controls-front">
-                    <button class="video-control-btn" onclick="toggleVideo('front')">▶ Play</button>
-                </div>
-            </div>
-
-            <div class="video-section">
-                <div class="video-label">Back Video (Face -Z) — Optional</div>
-                <div class="preview-small" id="preview-back">Empty</div>
-                <button onclick="document.getElementById('file-input-back').click()">Load Back Video</button>
-                <input type="file" id="file-input-back" accept="video/*">
-                <div class="video-controls hidden" id="controls-back">
-                    <button class="video-control-btn" onclick="toggleVideo('back')">▶ Play</button>
-                </div>
+            <div class="preview" id="preview">Empty</div>
+            <button onclick="document.getElementById('file-input').click()">Load Video</button>
+            <input type="file" id="file-input" accept="video/*">
+            <div class="video-controls hidden" id="video-controls">
+                <button class="video-control-btn" onclick="toggleVideo()">▶ Play</button>
             </div>
         </div>
 
@@ -290,21 +264,6 @@
 
             <div class="param-row">
                 <div class="param-header">
-                    <label>BLEND SOFTNESS</label>
-                    <div class="param-controls">
-                        <button class="arrow-btn" data-param="blendSoftness" data-dir="down">▼</button>
-                        <span class="value" id="val-blendSoftness" data-param="blendSoftness">0.3</span>
-                        <button class="arrow-btn" data-param="blendSoftness" data-dir="up">▲</button>
-                    </div>
-                </div>
-                <div class="slider-wrapper">
-                    <input type="range" class="slider" id="blendSoftness" min="0.0" max="1.0" step="0.05" value="0.3">
-                    <div class="center-mark" style="left: 30%;"></div>
-                </div>
-            </div>
-
-            <div class="param-row">
-                <div class="param-header">
                     <label style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" id="hide-black" style="width: 14px; height: 14px; cursor: pointer;">
                         <span>HIDE BLACK</span>
@@ -324,6 +283,7 @@
             <button onclick="applySettings()">Apply</button>
             <button onclick="resetToDefaults()">Reset to Defaults</button>
             <button onclick="resetCamera()">Reset Camera</button>
+            <button class="small" onclick="changeVideo()">Change Video</button>
         </div>
 
         <p class="hint">Drag to rotate • Scroll to zoom</p>
@@ -338,25 +298,20 @@
         let pointSize = 2.0;
         let particleDensity = 1;
         let brightness = 1.8;
-        let blendSoftness = 0.3;
         let hideBlack = false;
         let blackThreshold = 30;
         let time = 0;
-        let currentVideoFront = null;
-        let currentVideoBack = null;
+        let currentVideo = null;
         let currentShape = 'circle';
         let is3DMode = false;
         let regenerateTimeout;
-
-        // Video texture references
-        let texFront = null;
-        let texBack = null;
+        let videoTexture = null;
 
         // Real-time regeneration with debounce
         function scheduleRegenerate() {
             clearTimeout(regenerateTimeout);
             regenerateTimeout = setTimeout(() => {
-                if (currentVideoFront) generate(currentVideoFront, currentVideoBack);
+                if (currentVideo) generate(currentVideo);
             }, 150);
         }
 
@@ -367,8 +322,7 @@
             depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
             breath: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
             brightness: { min: 0.5, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
-            blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' },
-            blendSoftness: { min: 0.0, max: 1.0, step: 0.05, decimals: 2, suffix: '' }
+            blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
         };
 
         function updateValueDisplay(param) {
@@ -477,9 +431,9 @@
         }
 
         // Video control
-        function toggleVideo(which) {
-            const video = document.getElementById('video-' + which);
-            const btn = document.querySelector('#controls-' + which + ' .video-control-btn');
+        function toggleVideo() {
+            const video = document.getElementById('video-source');
+            const btn = document.querySelector('#video-controls .video-control-btn');
 
             if (video.paused) {
                 video.play();
@@ -635,78 +589,103 @@
         }
 
         // Load video function
-        function loadVideoFile(file, isFront) {
+        function loadVideoFile(file) {
             if (!file || !file.type.startsWith('video/')) return;
 
-            const videoElement = isFront ? document.getElementById('video-front') : document.getElementById('video-back');
+            const videoElement = document.getElementById('video-source');
             const url = URL.createObjectURL(file);
 
             videoElement.src = url;
             videoElement.load();
 
             videoElement.onloadeddata = function() {
-                if (isFront) {
-                    const isFirstLoad = (currentVideoFront === null);
-                    currentVideoFront = videoElement;
+                const isFirstLoad = (currentVideo === null);
+                currentVideo = videoElement;
 
-                    // Show preview
-                    const preview = document.getElementById('preview-front');
-                    preview.innerHTML = '<video src="' + url + '" muted loop playsinline style="max-width:100%;max-height:100%;"></video>';
-                    preview.classList.add('loaded');
-                    preview.querySelector('video').play();
+                // Show preview
+                document.getElementById('preview').innerHTML = '<video src="' + url + '" muted loop playsinline style="max-width:100%;max-height:100%;"></video>';
+                document.getElementById('preview').classList.add('loaded');
+                document.getElementById('preview').querySelector('video').play();
 
-                    // Show controls
-                    document.getElementById('controls-front').classList.remove('hidden');
+                // Show controls
+                document.getElementById('video-controls').classList.remove('hidden');
 
-                    if (isFirstLoad) {
-                        document.getElementById('size').value = 1.0;
-                        document.getElementById('density').value = 7;
-                        document.getElementById('depth').value = 1.0;
-                        document.getElementById('breath').value = 1.0;
-                        document.getElementById('brightness').value = 1.8;
-                        document.getElementById('blendSoftness').value = 0.3;
+                // Reset sliders to default ONLY on first load
+                if (isFirstLoad) {
+                    document.getElementById('size').value = 1.0;
+                    document.getElementById('density').value = 7;
+                    document.getElementById('depth').value = 1.0;
+                    document.getElementById('breath').value = 1.0;
+                    document.getElementById('brightness').value = 1.8;
 
-                        updateValueDisplay('size');
-                        updateValueDisplay('density');
-                        updateValueDisplay('depth');
-                        updateValueDisplay('breath');
-                        updateValueDisplay('brightness');
-                        updateValueDisplay('blendSoftness');
+                    updateValueDisplay('size');
+                    updateValueDisplay('density');
+                    updateValueDisplay('depth');
+                    updateValueDisplay('breath');
+                    updateValueDisplay('brightness');
 
-                        document.getElementById('load-section').classList.add('hidden');
-                        document.getElementById('controls').classList.remove('hidden');
-                        document.getElementById('ui').classList.add('loaded');
-                        document.getElementById('shape-selector').classList.remove('hidden');
-                    }
-
-                    // Auto-play
-                    videoElement.play();
-                } else {
-                    currentVideoBack = videoElement;
-
-                    const preview = document.getElementById('preview-back');
-                    preview.innerHTML = '<video src="' + url + '" muted loop playsinline style="max-width:100%;max-height:100%;"></video>';
-                    preview.classList.add('loaded');
-                    preview.querySelector('video').play();
-
-                    document.getElementById('controls-back').classList.remove('hidden');
-                    videoElement.play();
+                    document.getElementById('load-section').classList.add('hidden');
+                    document.getElementById('controls').classList.remove('hidden');
+                    document.getElementById('ui').classList.add('loaded');
+                    document.getElementById('shape-selector').classList.remove('hidden');
                 }
 
-                generate(currentVideoFront, currentVideoBack);
+                // Auto-play
+                videoElement.play();
+                generate(videoElement);
             };
         }
 
         // File input change
-        document.getElementById('file-input-front').onchange = function(e) {
-            loadVideoFile(e.target.files[0], true);
+        document.getElementById('file-input').onchange = function(e) {
+            loadVideoFile(e.target.files[0]);
         };
 
-        document.getElementById('file-input-back').onchange = function(e) {
-            loadVideoFile(e.target.files[0], false);
-        };
+        // Drag & drop on preview area
+        const preview = document.getElementById('preview');
 
-        function generate(videoFront, videoBack) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.5)';
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.1)';
+            });
+        });
+
+        preview.addEventListener('drop', function(e) {
+            const file = e.dataTransfer.files[0];
+            loadVideoFile(file);
+        });
+
+        // Global drag & drop on entire page
+        ['dragenter', 'dragover'].forEach(eventName => {
+            document.body.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.body.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('video/')) {
+                loadVideoFile(file);
+            }
+        });
+
+        function generate(video) {
             if (typeof THREE === 'undefined') {
                 alert('THREE.js not loaded.');
                 return;
@@ -718,9 +697,8 @@
             depthMultiplier = parseFloat(document.getElementById('depth').value);
             breathSpeed = parseFloat(document.getElementById('breath').value);
             brightness = parseFloat(document.getElementById('brightness').value);
-            blendSoftness = parseFloat(document.getElementById('blendSoftness').value);
 
-            // Sample first frame for particle positions
+            // Normalize video to fixed size for consistent volume
             const TARGET_SIZE = 1000;
             const step = Math.max(1, Math.floor(10 / particleDensity));
             const canvas = document.createElement('canvas');
@@ -728,26 +706,28 @@
             canvas.height = TARGET_SIZE;
             const ctx = canvas.getContext('2d');
 
-            // Draw current video frame
-            const videoWidth = videoFront.videoWidth;
-            const videoHeight = videoFront.videoHeight;
+            // Crop to center square and resize to TARGET_SIZE
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
             const sourceSize = Math.min(videoWidth, videoHeight);
             const offsetX = (videoWidth - sourceSize) / 2;
             const offsetY = (videoHeight - sourceSize) / 2;
 
-            ctx.drawImage(videoFront, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            // Draw current frame to sample pixels
+            ctx.drawImage(video, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
 
             const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
             const data = imageData.data;
 
-            // Create particle for each pixel
+            // Create particle for each pixel (1 pixel = 1 particle)
             const positions = [];
             const colors = [];
             const initialZ = [];
-            const uvs = [];
 
             const scaleFactor = 0.5;
             const halfSize = TARGET_SIZE / 2;
+
+            // TRUE CUBE: depth = width = height
             const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
 
             for (let y = 0; y < TARGET_SIZE; y += step) {
@@ -755,16 +735,19 @@
                     const i = (y * TARGET_SIZE + x) * 4;
                     const alpha = data[i + 3];
 
+                    // Only create particle if pixel is visible
                     if (alpha > 30) {
                         const r = data[i];
                         const g = data[i + 1];
                         const b = data[i + 2];
                         const maxColor = Math.max(r, g, b);
 
+                        // Skip black particles if hideBlack is enabled
                         if (hideBlack && maxColor < blackThreshold) {
                             continue;
                         }
 
+                        // Position
                         const px = (x - halfSize) * scaleFactor;
                         const py = -(y - halfSize) * scaleFactor;
                         const pz = (Math.random() - 0.5) * depthSpread;
@@ -772,15 +755,12 @@
                         positions.push(px, py, pz);
                         initialZ.push(pz);
 
+                        // Color directly from pixel with brightness boost
                         colors.push(
                             Math.min(1.0, (r / 255) * brightness),
                             Math.min(1.0, (g / 255) * brightness),
                             Math.min(1.0, (b / 255) * brightness)
                         );
-
-                        const u = x / (TARGET_SIZE - 1);
-                        const v = y / (TARGET_SIZE - 1);
-                        uvs.push(u, v);
                     }
                 }
             }
@@ -789,17 +769,13 @@
                 scene.remove(particles);
                 if (particles.geometry) particles.geometry.dispose();
                 if (particles.material) {
-                    if (texFront) texFront.dispose();
-                    if (texBack) texBack.dispose();
-                    if (particles.material.uniforms && particles.material.uniforms.uShape) {
-                        particles.material.uniforms.uShape.value.dispose();
-                    }
+                    if (videoTexture) videoTexture.dispose();
                     particles.material.dispose();
                 }
             }
 
             if (is3DMode) {
-                // 3D Mode: InstancedMesh
+                // 3D Mode: Use InstancedMesh with real 3D geometries
                 const count = positions.length / 3;
                 let baseGeometry;
                 const size = pointSize * 3;
@@ -862,84 +838,26 @@
                 particles.userData.is3D = true;
 
             } else {
-                // 2D Mode: Points with VIDEO textures
+                // 2D Mode: Use Points with VIDEO texture
                 geometry = new THREE.BufferGeometry();
                 geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
                 geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
                 geometry.setAttribute('initialZ', new THREE.Float32BufferAttribute(initialZ, 1));
-                geometry.setAttribute('aUV', new THREE.Float32BufferAttribute(uvs, 2));
 
-                // Create video textures
-                texFront = new THREE.VideoTexture(videoFront);
-                texFront.minFilter = THREE.LinearFilter;
-                texFront.magFilter = THREE.LinearFilter;
-
-                texBack = videoBack ? new THREE.VideoTexture(videoBack) : texFront;
-                if (videoBack) {
-                    texBack.minFilter = THREE.LinearFilter;
-                    texBack.magFilter = THREE.LinearFilter;
-                }
+                // Create video texture
+                videoTexture = new THREE.VideoTexture(video);
+                videoTexture.minFilter = THREE.LinearFilter;
+                videoTexture.magFilter = THREE.LinearFilter;
 
                 const shapeTexture = getShapeTexture(currentShape);
 
-                material = new THREE.ShaderMaterial({
-                    uniforms: {
-                        uTexFront: { value: texFront },
-                        uTexBack: { value: texBack },
-                        uShape: { value: shapeTexture },
-                        uPointSize: { value: pointSize },
-                        uBlendSoftness: { value: blendSoftness },
-                        uRotationY: { value: 0.0 }
-                    },
-                    vertexShader: `
-                        attribute vec3 color;
-                        attribute vec2 aUV;
-
-                        varying vec3 vColor;
-                        varying vec2 vUV;
-
-                        uniform float uPointSize;
-
-                        void main() {
-                            vColor = color;
-                            vUV = aUV;
-
-                            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                            gl_Position = projectionMatrix * mvPosition;
-
-                            gl_PointSize = uPointSize * (300.0 / -mvPosition.z);
-                        }
-                    `,
-                    fragmentShader: `
-                        uniform sampler2D uTexFront;
-                        uniform sampler2D uTexBack;
-                        uniform sampler2D uShape;
-                        uniform float uBlendSoftness;
-                        uniform float uRotationY;
-
-                        varying vec3 vColor;
-                        varying vec2 vUV;
-
-                        #define PI 3.14159265359
-
-                        void main() {
-                            vec4 shapeColor = texture2D(uShape, gl_PointCoord);
-                            if (shapeColor.a < 0.1) discard;
-
-                            float angleFactor = cos(uRotationY);
-                            float blend = smoothstep(-uBlendSoftness, uBlendSoftness, angleFactor);
-
-                            vec4 frontColor = texture2D(uTexFront, vUV);
-                            vec4 backColor = texture2D(uTexBack, vUV);
-
-                            vec4 finalColor = mix(backColor, frontColor, blend);
-
-                            gl_FragColor = vec4(vColor * finalColor.rgb, shapeColor.a);
-                        }
-                    `,
+                material = new THREE.PointsMaterial({
+                    size: pointSize,
+                    vertexColors: true,
                     transparent: true,
-                    depthTest: true,
-                    depthWrite: false
+                    opacity: 1.0,
+                    sizeAttenuation: true,
+                    map: shapeTexture
                 });
 
                 particles = new THREE.Points(geometry, material);
@@ -949,12 +867,12 @@
         }
 
         function applySettings() {
-            if (!currentVideoFront) {
-                alert('No front video loaded');
+            if (!currentVideo) {
+                alert('No video loaded');
                 return;
             }
 
-            generate(currentVideoFront, currentVideoBack);
+            generate(currentVideo);
         }
 
         function resetToDefaults() {
@@ -964,7 +882,6 @@
             document.getElementById('breath').value = 1.0;
             document.getElementById('brightness').value = 1.8;
             document.getElementById('blackThreshold').value = 30;
-            document.getElementById('blendSoftness').value = 0.3;
             document.getElementById('hide-black').checked = false;
             hideBlack = false;
 
@@ -974,10 +891,9 @@
             updateValueDisplay('breath');
             updateValueDisplay('brightness');
             updateValueDisplay('blackThreshold');
-            updateValueDisplay('blendSoftness');
 
-            if (currentVideoFront) {
-                generate(currentVideoFront, currentVideoBack);
+            if (currentVideo) {
+                generate(currentVideo);
             }
         }
 
@@ -989,27 +905,24 @@
             }
         }
 
-        // Animation with video texture updates
+        function changeVideo() {
+            document.getElementById('file-input').click();
+        }
+
+        // Animation with subtle breathing movement and video texture updates
         function animate() {
             requestAnimationFrame(animate);
 
             time += 0.001 * breathSpeed;
 
-            // Update rotation uniform for 2D shader
-            if (particles && material && material.uniforms && material.uniforms.uRotationY) {
-                material.uniforms.uRotationY.value = particles.rotation.y;
-            }
-
-            // Update video textures
-            if (texFront && currentVideoFront) {
-                texFront.needsUpdate = true;
-            }
-            if (texBack && currentVideoBack) {
-                texBack.needsUpdate = true;
+            // Update video texture
+            if (videoTexture && currentVideo) {
+                videoTexture.needsUpdate = true;
             }
 
             if (particles) {
                 if (particles.userData && particles.userData.is3D) {
+                    // 3D Mode: Update instance matrices for breathing animation
                     const initialZs = particles.userData.initialZ;
                     const positions = particles.userData.positions;
 
@@ -1031,6 +944,7 @@
                         particles.instanceMatrix.needsUpdate = true;
                     }
                 } else if (geometry && geometry.attributes.position) {
+                    // 2D Mode: Update position attribute
                     const positions = geometry.attributes.position.array;
                     const initialZs = geometry.attributes.initialZ.array;
 
@@ -1062,12 +976,13 @@
                     document.querySelectorAll('.shape-btn[data-shape]').forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
                     currentShape = this.dataset.shape;
-                    if (currentVideoFront) {
-                        generate(currentVideoFront, currentVideoBack);
+                    if (currentVideo) {
+                        generate(currentVideo);
                     }
                 });
             });
 
+            // 3D Mode toggle
             document.getElementById('mode-3d-btn').addEventListener('click', function() {
                 is3DMode = !is3DMode;
                 this.classList.toggle('active');
@@ -1082,11 +997,12 @@
                     mark3D.style.display = 'none';
                 }
 
-                if (currentVideoFront) {
-                    generate(currentVideoFront, currentVideoBack);
+                if (currentVideo) {
+                    generate(currentVideo);
                 }
             });
 
+            // Hide black checkbox
             document.getElementById('hide-black').addEventListener('change', function() {
                 hideBlack = this.checked;
                 scheduleRegenerate();
@@ -1121,6 +1037,7 @@
             });
         });
 
+        // Start
         window.onload = init;
     </script>
 </body>
