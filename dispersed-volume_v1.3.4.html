@@ -277,12 +277,12 @@
                 <label>COLOR UPDATE FPS</label>
                 <div class="param-controls">
                     <button class="arrow-btn" data-param="colorUpdateFPS" data-dir="down">▼</button>
-                    <span class="value" id="val-colorUpdateFPS" data-param="colorUpdateFPS">15</span>
+                    <span class="value" id="val-colorUpdateFPS" data-param="colorUpdateFPS">60</span>
                     <button class="arrow-btn" data-param="colorUpdateFPS" data-dir="up">▲</button>
                 </div>
             </div>
             <div class="slider-wrapper">
-                <input type="range" class="slider" id="colorUpdateFPS" min="5" max="30" step="1" value="15">
+                <input type="range" class="slider" id="colorUpdateFPS" min="5" max="60" step="5" value="60">
             </div>
         </div>
 
@@ -499,7 +499,7 @@
         // v1.3.4 — New parameters for depth quality
         let DEPTH_GAMMA = 1.6;                 // Gamma correction for depth (reduces banding)
         let DEPTH_DITHER = 0.015;              // Dithering amount to smooth depth transitions
-        let COLOR_UPDATE_FPS = 15;             // Throttle color updates for performance
+        let COLOR_UPDATE_FPS = 60;             // Throttle color updates (60 = every frame, no throttling)
 
         // v1.3.4 — Throttling for updateColorsFromVideo
         let lastColorUpdate = -1000; // Initialize to force first update
@@ -538,7 +538,7 @@
             // v1.3.4 — New depth quality parameters
             depthGamma: { min: 0.6, max: 3.0, step: 0.05, decimals: 2, suffix: '' },
             depthDither: { min: 0.0, max: 0.06, step: 0.001, decimals: 3, suffix: '' },
-            colorUpdateFPS: { min: 5, max: 30, step: 1, decimals: 0, suffix: '' }
+            colorUpdateFPS: { min: 5, max: 60, step: 5, decimals: 0, suffix: '' }
         };
 
         function updateValueDisplay(param) {
@@ -1366,7 +1366,7 @@
             document.getElementById('depthJitterXY').value = 0.5;
             document.getElementById('depthGamma').value = 1.6;
             document.getElementById('depthDither').value = 0.015;
-            document.getElementById('colorUpdateFPS').value = 15;
+            document.getElementById('colorUpdateFPS').value = 60;
 
             DEPTH_LAYERS = 4;
             DEPTH_THICKNESS = 20.0;
@@ -1374,7 +1374,7 @@
             DEPTH_JITTER_XY = 0.5;
             DEPTH_GAMMA = 1.6;
             DEPTH_DITHER = 0.015;
-            COLOR_UPDATE_FPS = 15;
+            COLOR_UPDATE_FPS = 60;
 
             updateValueDisplay('size');
             updateValueDisplay('density');
