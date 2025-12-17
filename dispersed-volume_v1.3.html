@@ -264,6 +264,21 @@
 
             <div class="param-row">
                 <div class="param-header">
+                    <label>FLOW</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="flow" data-dir="down">▼</button>
+                        <span class="value" id="val-flow" data-param="flow">0.0</span>
+                        <button class="arrow-btn" data-param="flow" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="flow" min="0" max="3.0" step="0.1" value="0.0">
+                    <div class="center-mark" style="left: 0%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
                     <label style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" id="hide-black" style="width: 14px; height: 14px; cursor: pointer;">
                         <span>HIDE BLACK</span>
@@ -301,6 +316,7 @@
         let hideBlack = false;
         let blackThreshold = 30;
         let time = 0;
+        let flowIntensity = 0.0;
         let currentVideo = null;
         let currentShape = 'circle';
         let is3DMode = false;
@@ -311,6 +327,9 @@
         let videoSamplingCanvas = null;
         let videoSamplingCtx = null;
         let videoSamplingData = null;
+
+        // Flow movement data - stores random offsets for each particle
+        let flowOffsets = null;
 
         // Real-time regeneration with debounce
         function scheduleRegenerate() {
@@ -327,6 +346,7 @@
             depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
             breath: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
             brightness: { min: 0.5, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            flow: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
             blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
         };
 
@@ -344,7 +364,13 @@
                 const slider = document.getElementById(param);
                 slider.addEventListener('input', function() {
                     updateValueDisplay(param);
-                    scheduleRegenerate();
+
+                    // Flow is real-time, doesn't need regeneration
+                    if (param === 'flow') {
+                        flowIntensity = parseFloat(slider.value);
+                    } else {
+                        scheduleRegenerate();
+                    }
                 });
                 updateValueDisplay(param);
             });
@@ -376,7 +402,13 @@
                         newValue = Math.max(config.min, Math.min(config.max, newValue));
                         slider.value = newValue;
                         updateValueDisplay(param);
-                        scheduleRegenerate();
+
+                        // Flow is real-time, doesn't need regeneration
+                        if (param === 'flow') {
+                            flowIntensity = newValue;
+                        } else {
+                            scheduleRegenerate();
+                        }
                         input.replaceWith(valueSpan);
                     }
 
@@ -417,7 +449,13 @@
 
                     slider.value = value;
                     updateValueDisplay(param);
-                    scheduleRegenerate();
+
+                    // Flow is real-time, doesn't need regeneration
+                    if (param === 'flow') {
+                        flowIntensity = value;
+                    } else {
+                        scheduleRegenerate();
+                    }
                 }
 
                 btn.addEventListener('mousedown', function() {
@@ -456,6 +494,9 @@
             canvas.height = 64;
             const ctx = canvas.getContext('2d');
 
+            // Clear to transparent
+            ctx.clearRect(0, 0, 64, 64);
+
             ctx.fillStyle = 'white';
             ctx.beginPath();
             ctx.arc(32, 32, 32, 0, Math.PI * 2);
@@ -470,6 +511,9 @@
             canvas.height = 64;
             const ctx = canvas.getContext('2d');
 
+            // Clear to transparent
+            ctx.clearRect(0, 0, 64, 64);
+
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, 64, 64);
 
@@ -481,6 +525,9 @@
             canvas.width = 64;
             canvas.height = 64;
             const ctx = canvas.getContext('2d');
+
+            // Clear to transparent
+            ctx.clearRect(0, 0, 64, 64);
 
             ctx.fillStyle = 'white';
             ctx.beginPath();
@@ -499,6 +546,9 @@
             canvas.width = 64;
             canvas.height = 64;
             const ctx = canvas.getContext('2d');
+
+            // Clear to transparent
+            ctx.clearRect(0, 0, 64, 64);
 
             ctx.fillStyle = 'white';
             ctx.beginPath();
@@ -702,6 +752,7 @@
             depthMultiplier = parseFloat(document.getElementById('depth').value);
             breathSpeed = parseFloat(document.getElementById('breath').value);
             brightness = parseFloat(document.getElementById('brightness').value);
+            flowIntensity = parseFloat(document.getElementById('flow').value);
 
             // Normalize video to fixed size for consistent volume
             const TARGET_SIZE = 1000;
@@ -885,6 +936,20 @@
             }
 
             scene.add(particles);
+
+            // Initialize flow offsets - random circular movement for each particle
+            const particleCount = positions.length / 3;
+            flowOffsets = [];
+            for (let i = 0; i < particleCount; i++) {
+                flowOffsets.push({
+                    phaseX: Math.random() * Math.PI * 2,  // Random starting phase for X
+                    phaseY: Math.random() * Math.PI * 2,  // Random starting phase for Y
+                    speedX: 0.3 + Math.random() * 0.7,    // Random speed multiplier X (0.3-1.0)
+                    speedY: 0.3 + Math.random() * 0.7,    // Random speed multiplier Y (0.3-1.0)
+                    radiusX: 2 + Math.random() * 8,       // Random radius X (2-10)
+                    radiusY: 2 + Math.random() * 8        // Random radius Y (2-10)
+                });
+            }
         }
 
         function applySettings() {
@@ -902,6 +967,7 @@
             document.getElementById('depth').value = 1.0;
             document.getElementById('breath').value = 1.0;
             document.getElementById('brightness').value = 1.8;
+            document.getElementById('flow').value = 0.0;
             document.getElementById('blackThreshold').value = 30;
             document.getElementById('hide-black').checked = false;
             hideBlack = false;
@@ -911,6 +977,7 @@
             updateValueDisplay('depth');
             updateValueDisplay('breath');
             updateValueDisplay('brightness');
+            updateValueDisplay('flow');
             updateValueDisplay('blackThreshold');
 
             if (currentVideo) {
@@ -1011,9 +1078,9 @@
                 videoTexture.needsUpdate = true;
             }
 
-            if (particles) {
+            if (particles && flowOffsets) {
                 if (particles.userData && particles.userData.is3D) {
-                    // 3D Mode: Update instance matrices for breathing animation
+                    // 3D Mode: Update instance matrices for breathing and flow animation
                     const initialZs = particles.userData.initialZ;
                     const positions = particles.userData.positions;
 
@@ -1025,9 +1092,17 @@
                             const breathOffset = Math.sin(time + i * 0.01) * epsilon;
                             const newZ = initialZs[i] + breathOffset;
 
+                            // Flow movement - circular organic motion
+                            let flowX = 0, flowY = 0;
+                            if (flowIntensity > 0 && flowOffsets[i]) {
+                                const offset = flowOffsets[i];
+                                flowX = Math.sin(time * offset.speedX + offset.phaseX) * offset.radiusX * flowIntensity;
+                                flowY = Math.cos(time * offset.speedY + offset.phaseY) * offset.radiusY * flowIntensity;
+                            }
+
                             matrix.setPosition(
-                                positions[i * 3],
-                                positions[i * 3 + 1],
+                                positions[i * 3] + flowX,
+                                positions[i * 3 + 1] + flowY,
                                 newZ
                             );
                             particles.setMatrixAt(i, matrix);
@@ -1035,15 +1110,35 @@
                         particles.instanceMatrix.needsUpdate = true;
                     }
                 } else if (geometry && geometry.attributes.position) {
-                    // 2D Mode: Update position attribute
+                    // 2D Mode: Update position attribute for breathing and flow animation
                     const positions = geometry.attributes.position.array;
                     const initialZs = geometry.attributes.initialZ.array;
 
+                    // Store initial positions if not already stored
+                    if (!geometry.userData.initialPositions) {
+                        geometry.userData.initialPositions = new Float32Array(positions.length);
+                        for (let i = 0; i < positions.length; i++) {
+                            geometry.userData.initialPositions[i] = positions[i];
+                        }
+                    }
+
+                    const initialPositions = geometry.userData.initialPositions;
+
                     for (let i = 0; i < positions.length / 3; i++) {
-                        const idx = i * 3 + 2;
                         const epsilon = 0.3 * breathSpeed;
                         const breathOffset = Math.sin(time + i * 0.01) * epsilon;
-                        positions[idx] = initialZs[i] + breathOffset;
+
+                        // Flow movement - circular organic motion
+                        let flowX = 0, flowY = 0;
+                        if (flowIntensity > 0 && flowOffsets[i]) {
+                            const offset = flowOffsets[i];
+                            flowX = Math.sin(time * offset.speedX + offset.phaseX) * offset.radiusX * flowIntensity;
+                            flowY = Math.cos(time * offset.speedY + offset.phaseY) * offset.radiusY * flowIntensity;
+                        }
+
+                        positions[i * 3] = initialPositions[i * 3] + flowX;
+                        positions[i * 3 + 1] = initialPositions[i * 3 + 1] + flowY;
+                        positions[i * 3 + 2] = initialZs[i] + breathOffset;
                     }
 
                     geometry.attributes.position.needsUpdate = true;
