@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Dispersed Volume - Prototype 1.3.6</title>
+    <!-- Version 1.3.6 - Image/Video support with YouTube-style controls -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               background: #000; color: #fff; overflow: hidden; }
+
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+              z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+              padding: 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+              max-width: 500px; width: 90%; transition: all 0.4s ease; }
+
+        #ui.loaded { top: auto; bottom: 20px; left: auto; right: 20px;
+                     transform: none; max-width: 360px; width: auto; padding: 24px; }
+
+        #title-link { position: fixed; top: 20px; left: 20px; z-index: 100;
+                      text-decoration: none; color: #fff; transition: opacity 0.2s; }
+        #title-link:hover { opacity: 1 !important; }
+
+        #title { font-size: 18px; font-weight: 600; opacity: 0.7;
+                 text-transform: uppercase; letter-spacing: 2px; }
+
+        #subtitle { font-size: 11px; font-weight: 400; opacity: 0.5;
+                    margin-top: 4px; letter-spacing: 0.5px;
+                    text-transform: none; }
+
+        button { display: block; width: 100%; margin: 8px 0; padding: 14px;
+                 background: rgba(255,255,255,0.1); color: #fff;
+                 border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+                 cursor: pointer; font-size: 12px; font-weight: 600;
+                 transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+        button:hover { background: rgba(255,255,255,0.2); }
+        button:active { transform: scale(0.98); }
+
+        button.small { padding: 8px; font-size: 10px; opacity: 0.7; }
+        button.small:hover { opacity: 1; }
+
+        .preview { width: 100%; aspect-ratio: 1; border-radius: 6px; margin: 8px 0;
+                   display: flex; align-items: center; justify-content: center;
+                   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+                   overflow: hidden; font-size: 10px; opacity: 0.4; }
+        .preview video, .preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        .preview.loaded { opacity: 1; }
+
+        input[type="file"] { display: none; }
+
+        label { font-size: 11px; font-weight: 600; margin-top: 16px; display: block;
+                text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.7; }
+
+        .hidden { display: none !important; }
+
+        #controls { margin-top: 16px; padding-top: 16px;
+                    border-top: 1px solid rgba(255,255,255,0.15); }
+
+        .slider { width: 100%; height: 4px; border-radius: 2px;
+                  background: rgba(255,255,255,0.15); outline: none;
+                  -webkit-appearance: none; margin: 10px 0; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+                                         width: 18px; height: 18px; border-radius: 50%;
+                                         background: #fff; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%;
+                                     background: #fff; cursor: pointer; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+
+        .value { font-family: 'Courier New', monospace; font-weight: 700; font-size: 11px;
+                 cursor: pointer; padding: 2px 6px; border-radius: 3px;
+                 transition: background 0.2s; }
+        .value:hover { background: rgba(255,255,255,0.1); }
+        .value-input { font-family: 'Courier New', monospace; font-weight: 700; font-size: 11px;
+                       background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+                       color: #fff; padding: 2px 6px; border-radius: 3px; width: 60px;
+                       text-align: center; }
+
+        .param-row { margin-bottom: 20px; }
+        .param-header { display: flex; justify-content: space-between; align-items: center;
+                        margin-bottom: 8px; }
+        .param-header label { margin: 0; }
+        .param-controls { display: flex; gap: 4px; align-items: center; }
+
+        .arrow-btn { width: 20px; height: 20px; padding: 0; margin: 0;
+                     background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+                     border-radius: 4px; color: #fff; font-size: 10px; cursor: pointer;
+                     display: flex; align-items: center; justify-content: center;
+                     transition: all 0.15s; line-height: 1; }
+        .arrow-btn:hover { background: rgba(255,255,255,0.2); }
+        .arrow-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
+
+        .slider-wrapper { position: relative; }
+        .slider-wrapper .slider { margin: 0; }
+        .center-mark { position: absolute; top: 50%; transform: translateY(-50%);
+                       width: 2px; height: 12px; background: rgba(255,255,255,0.4);
+                       pointer-events: none; border-radius: 1px; }
+
+        .hint { font-size: 9px; opacity: 0.3; margin-top: 10px; text-align: center;
+                font-style: italic; }
+
+        #shape-selector { position: fixed; top: 20px; right: 20px; z-index: 100;
+                          display: flex; gap: 8px; background: rgba(0,0,0,0.75);
+                          backdrop-filter: blur(10px); padding: 8px; border-radius: 8px;
+                          border: 1px solid rgba(255,255,255,0.2); }
+
+        .shape-btn { width: 40px; height: 40px; background: rgba(255,255,255,0.1);
+                     border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+                     color: #fff; font-size: 20px; cursor: pointer; transition: all 0.2s;
+                     display: flex; align-items: center; justify-content: center;
+                     padding: 0; margin: 0; }
+        .shape-btn:hover { background: rgba(255,255,255,0.2); transform: none; }
+        .shape-btn.active { background: rgba(255,255,255,0.3);
+                            border-color: rgba(255,255,255,0.5); }
+
+        #mode-3d-btn { width: auto; padding: 0 12px; font-size: 10px; margin-left: 8px;
+                       border-left: 1px solid rgba(255,255,255,0.3); }
+
+        /* Version selector */
+        #version-selector { position: fixed; bottom: 20px; left: 20px; z-index: 100;
+                           background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
+                           padding: 8px 12px; border-radius: 6px;
+                           border: 1px solid rgba(255,255,255,0.2);
+                           font-size: 10px; cursor: pointer; transition: all 0.2s; }
+        #version-selector:hover { background: rgba(0,0,0,0.85); }
+
+        #version-menu { position: fixed; bottom: 60px; left: 20px; z-index: 99;
+                       background: rgba(0,0,0,0.9); backdrop-filter: blur(10px);
+                       padding: 8px; border-radius: 6px;
+                       border: 1px solid rgba(255,255,255,0.2);
+                       display: none; max-height: 400px; overflow-y: auto; }
+        #version-menu.show { display: block; }
+
+        .version-item { padding: 8px 12px; cursor: pointer; font-size: 10px;
+                       border-radius: 4px; margin: 2px 0; transition: all 0.2s;
+                       white-space: nowrap; }
+        .version-item:hover { background: rgba(255,255,255,0.1); }
+        .version-item.current { background: rgba(255,255,255,0.15); font-weight: 600; }
+
+        /* Video controls */
+        .video-controls { margin-top: 12px; }
+        .video-control-btn { padding: 8px 12px; font-size: 10px; margin: 0; width: 100%; }
+
+        .video-timeline { margin-top: 8px; }
+        .timeline-container {
+            position: relative;
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            cursor: pointer;
+            margin-bottom: 6px;
+        }
+        .timeline-progress {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: rgba(255,255,255,0.5);
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+        .timeline-container:hover .timeline-progress {
+            background: rgba(255,255,255,0.7);
+        }
+        .timeline-thumb {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .timeline-container:hover .timeline-thumb {
+            opacity: 1;
+        }
+        .video-time {
+            font-size: 9px;
+            color: rgba(255,255,255,0.5);
+            text-align: center;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Hidden video element */
+        .hidden-video { position: absolute; left: -9999px; }
+    </style>
+</head>
+<body>
+    <a href="index.html" id="title-link">
+        <div id="title">Volumetric Particles</div>
+        <div id="subtitle">v1.3.6 — Image/Vidéo avec contrôles YouTube</div>
+    </a>
+
+    <div id="shape-selector" class="hidden">
+        <button class="shape-btn" data-shape="circle" title="Circle">●</button>
+        <button class="shape-btn active" data-shape="square" title="Square">■</button>
+        <button class="shape-btn" data-shape="diamond" title="Diamond">◆</button>
+        <button class="shape-btn" data-shape="star" title="Star">★</button>
+        <button class="shape-btn active" id="mode-3d-btn" title="Toggle 3D Mode">3D</button>
+    </div>
+    <div id="canvas"></div>
+
+    <!-- Hidden video element for texture source -->
+    <div class="hidden-video">
+        <video id="video-source" loop muted playsinline></video>
+    </div>
+
+    <!-- Hidden image element for texture source -->
+    <div class="hidden-video">
+        <img id="image-source" style="display: none;">
+    </div>
+
+    <!-- Version Selector -->
+    <div id="version-selector">
+        <span>v<span id="current-version">1.3.6</span></span>
+    </div>
+    <div id="version-menu">
+        <div class="version-item" data-version="1.0" data-file="dispersed-volume.html">v1.0 — Image dispersée</div>
+        <div class="version-item" data-version="1.3" data-file="dispersed-volume_v1.3.html">v1.3 — Vidéo dispersée</div>
+        <div class="version-item" data-version="1.3.1" data-file="dispersed-volume_v1.3.1.html">v1.3.1 — Luminance depth</div>
+        <div class="version-item" data-version="1.3.2" data-file="dispersed-volume_v1.3.2.html">v1.3.2 — Depth map vidéo</div>
+        <div class="version-item" data-version="1.3.3" data-file="dispersed-volume_v1.3.3.html">v1.3.3 — Volumetric depth</div>
+        <div class="version-item" data-version="1.3.4" data-file="dispersed-volume_v1.3.4.html">v1.3.4 — Volumetric fixed</div>
+        <div class="version-item" data-version="1.3.5" data-file="dispersed-volume_v1.3.5.html">v1.3.5 — Volumetric continuous</div>
+        <div class="version-item" data-version="1.3.6" data-file="dispersed-volume_v1.3.6.html">v1.3.6 — Image/Vidéo + YouTube</div>
+    </div>
+
+    <div id="ui">
+        <div id="load-section">
+            <div class="preview" id="preview">Empty</div>
+            <button onclick="document.getElementById('file-input').click()">Load Image/Video</button>
+            <input type="file" id="file-input" accept="image/*,video/*">
+            <div class="video-controls hidden" id="video-controls">
+                <button class="video-control-btn" id="play-pause-btn" onclick="toggleVideo()">⏸ Pause</button>
+                <div class="video-timeline">
+                    <div class="timeline-container" id="timeline">
+                        <div class="timeline-progress" id="timeline-progress"></div>
+                        <div class="timeline-thumb" id="timeline-thumb"></div>
+                    </div>
+                    <div class="video-time">
+                        <span id="current-time">0:00</span> / <span id="duration">0:00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="controls" class="hidden">
+            <div class="param-row">
+                <div class="param-header">
+                    <label>POINT SIZE</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="size" data-dir="down">▼</button>
+                        <span class="value" id="val-size" data-param="size">0.37</span>
+                        <button class="arrow-btn" data-param="size" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="size" min="0.1" max="2.0" step="0.01" value="0.37">
+                    <div class="center-mark" id="size-mark-2d" style="left: 47.4%;"></div>
+                    <div class="center-mark" id="size-mark-3d" style="left: 13.2%; display: none;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>PARTICLE DENSITY</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="density" data-dir="down">▼</button>
+                        <span class="value" id="val-density" data-param="density">7X</span>
+                        <button class="arrow-btn" data-param="density" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="density" min="1" max="15" step="1" value="7">
+                    <div class="center-mark" style="left: 42.9%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>DEPTH SPREAD</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="depth" data-dir="down">▼</button>
+                        <span class="value" id="val-depth" data-param="depth">0.1X</span>
+                        <button class="arrow-btn" data-param="depth" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="0.1">
+                    <div class="center-mark" style="left: 31.0%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>BREATH SPEED</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="breath" data-dir="down">▼</button>
+                        <span class="value" id="val-breath" data-param="breath">1.0</span>
+                        <button class="arrow-btn" data-param="breath" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="breath" min="0" max="3.0" step="0.1" value="1.0">
+                    <div class="center-mark" style="left: 33.3%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>BRIGHTNESS</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="brightness" data-dir="down">▼</button>
+                        <span class="value" id="val-brightness" data-param="brightness">1.3</span>
+                        <button class="arrow-btn" data-param="brightness" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="brightness" min="0.5" max="3.0" step="0.1" value="1.3">
+                    <div class="center-mark" style="left: 52%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label>FLOW</label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="flow" data-dir="down">▼</button>
+                        <span class="value" id="val-flow" data-param="flow">0.0</span>
+                        <button class="arrow-btn" data-param="flow" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="flow" min="0" max="3.0" step="0.1" value="0.0">
+                    <div class="center-mark" style="left: 0%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="hide-black" style="width: 14px; height: 14px; cursor: pointer;">
+                        <span>HIDE BLACK</span>
+                    </label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="blackThreshold" data-dir="down">▼</button>
+                        <span class="value" id="val-blackThreshold" data-param="blackThreshold">30</span>
+                        <button class="arrow-btn" data-param="blackThreshold" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="blackThreshold" min="0" max="128" step="1" value="30">
+                    <div class="center-mark" style="left: 23.4%;"></div>
+                </div>
+            </div>
+
+            <button onclick="applySettings()">Apply</button>
+            <button onclick="resetToDefaults()">Reset to Defaults</button>
+            <button onclick="resetCamera()">Reset Camera</button>
+            <button class="small" onclick="changeMedia()">Change Image/Video</button>
+        </div>
+
+        <p class="hint">Drag to rotate • Scroll to zoom</p>
+    </div>
+
+    <script src="three.min.js"></script>
+    <script>
+        let scene, camera, renderer, particles;
+        let geometry, material;
+        let breathSpeed = 1.0;
+        let depthMultiplier = 0.1;
+        let pointSize = 0.37;
+        let particleDensity = 7;
+        let brightness = 1.3;
+        let hideBlack = false;
+        let blackThreshold = 30;
+        let time = 0;
+        let flowIntensity = 0.0;
+        let currentMedia = null;
+        let isVideo = false;
+        let currentShape = 'square';
+        let is3DMode = true;
+        let regenerateTimeout;
+        let videoTexture = null;
+
+        // Video sampling data for continuous updates
+        let videoSamplingCanvas = null;
+        let videoSamplingCtx = null;
+        let videoSamplingData = null;
+
+        // Flow movement data - stores random offsets for each particle
+        let flowOffsets = null;
+
+        // Real-time regeneration with debounce
+        function scheduleRegenerate() {
+            clearTimeout(regenerateTimeout);
+            regenerateTimeout = setTimeout(() => {
+                if (currentMedia) generate(currentMedia);
+            }, 150);
+        }
+
+        // Parameter control system
+        const paramConfigs = {
+            size: { min: 0.1, max: 2.0, step: 0.01, decimals: 2, suffix: '' },
+            density: { min: 1, max: 15, step: 1, decimals: 0, suffix: 'X' },
+            depth: { min: 0.1, max: 3.0, step: 0.1, decimals: 1, suffix: 'X' },
+            breath: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            brightness: { min: 0.5, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            flow: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
+        };
+
+        function updateValueDisplay(param) {
+            const slider = document.getElementById(param);
+            const valueSpan = document.getElementById('val-' + param);
+            const config = paramConfigs[param];
+            const value = parseFloat(slider.value);
+            const formatted = value.toFixed(config.decimals);
+            valueSpan.textContent = formatted + config.suffix;
+        }
+
+        function setupSliderListeners() {
+            Object.keys(paramConfigs).forEach(param => {
+                const slider = document.getElementById(param);
+                slider.addEventListener('input', function() {
+                    updateValueDisplay(param);
+
+                    // Flow is real-time, doesn't need regeneration
+                    if (param === 'flow') {
+                        flowIntensity = parseFloat(slider.value);
+                    } else {
+                        scheduleRegenerate();
+                    }
+                });
+                updateValueDisplay(param);
+            });
+        }
+
+        // Double-click to edit values
+        function setupValueEditing() {
+            document.querySelectorAll('.value[data-param]').forEach(valueSpan => {
+                valueSpan.addEventListener('dblclick', function() {
+                    const param = this.dataset.param;
+                    const config = paramConfigs[param];
+                    const slider = document.getElementById(param);
+                    const currentValue = parseFloat(slider.value);
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.className = 'value-input';
+                    input.min = config.min;
+                    input.max = config.max;
+                    input.step = config.step;
+                    input.value = currentValue.toFixed(config.decimals);
+
+                    this.replaceWith(input);
+                    input.focus();
+                    input.select();
+
+                    function finishEdit() {
+                        let newValue = parseFloat(input.value);
+                        newValue = Math.max(config.min, Math.min(config.max, newValue));
+                        slider.value = newValue;
+                        updateValueDisplay(param);
+
+                        // Flow is real-time, doesn't need regeneration
+                        if (param === 'flow') {
+                            flowIntensity = newValue;
+                        } else {
+                            scheduleRegenerate();
+                        }
+                        input.replaceWith(valueSpan);
+                    }
+
+                    input.addEventListener('blur', finishEdit);
+                    input.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') finishEdit();
+                        if (e.key === 'Escape') {
+                            input.replaceWith(valueSpan);
+                        }
+                    });
+                });
+            });
+        }
+
+        // Arrow buttons with acceleration
+        let arrowInterval;
+        let arrowAcceleration = 1;
+        let arrowStartTime;
+
+        function setupArrowButtons() {
+            document.querySelectorAll('.arrow-btn').forEach(btn => {
+                const param = btn.dataset.param;
+                const direction = btn.dataset.dir === 'up' ? 1 : -1;
+                const config = paramConfigs[param];
+
+                function incrementValue() {
+                    const slider = document.getElementById(param);
+                    let value = parseFloat(slider.value);
+
+                    const holdTime = Date.now() - arrowStartTime;
+                    let speed = 1;
+                    if (holdTime > 2000) speed = 10;
+                    else if (holdTime > 1000) speed = 5;
+                    else if (holdTime > 500) speed = 2;
+
+                    value += direction * config.step * speed;
+                    value = Math.max(config.min, Math.min(config.max, value));
+
+                    slider.value = value;
+                    updateValueDisplay(param);
+
+                    // Flow is real-time, doesn't need regeneration
+                    if (param === 'flow') {
+                        flowIntensity = value;
+                    } else {
+                        scheduleRegenerate();
+                    }
+                }
+
+                btn.addEventListener('mousedown', function() {
+                    arrowStartTime = Date.now();
+                    incrementValue();
+                    arrowInterval = setInterval(incrementValue, 100);
+                });
+
+                btn.addEventListener('mouseup', stopArrow);
+                btn.addEventListener('mouseleave', stopArrow);
+
+                function stopArrow() {
+                    clearInterval(arrowInterval);
+                }
+            });
+        }
+
+        // Video control
+        function toggleVideo() {
+            if (!isVideo) return;
+
+            const video = document.getElementById('video-source');
+            const btn = document.getElementById('play-pause-btn');
+
+            if (video.paused) {
+                video.play();
+                btn.textContent = '⏸ Pause';
+            } else {
+                video.pause();
+                btn.textContent = '▶ Play';
+            }
+        }
+
+        // Format time in MM:SS
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Update video timeline
+        function updateTimeline() {
+            if (!isVideo) return;
+
+            const video = document.getElementById('video-source');
+            if (!video || !video.duration) return;
+
+            const progress = (video.currentTime / video.duration) * 100;
+            const progressBar = document.getElementById('timeline-progress');
+            const thumb = document.getElementById('timeline-thumb');
+            const currentTimeSpan = document.getElementById('current-time');
+            const durationSpan = document.getElementById('duration');
+
+            if (progressBar) progressBar.style.width = progress + '%';
+            if (thumb) thumb.style.left = progress + '%';
+            if (currentTimeSpan) currentTimeSpan.textContent = formatTime(video.currentTime);
+            if (durationSpan) durationSpan.textContent = formatTime(video.duration);
+        }
+
+        // Seek video to specific position
+        function seekVideo(event) {
+            if (!isVideo) return;
+
+            const video = document.getElementById('video-source');
+            if (!video || !video.duration) return;
+
+            const timeline = document.getElementById('timeline');
+            const rect = timeline.getBoundingClientRect();
+            const pos = (event.clientX - rect.left) / rect.width;
+            video.currentTime = pos * video.duration;
+        }
+
+        // Spacebar to play/pause
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space' && currentMedia && isVideo) {
+                e.preventDefault();
+                toggleVideo();
+            }
+        });
+
+        // Shape texture generators
+        function createCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 64, 64);
+
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(32, 32, 32, 0, Math.PI * 2);
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSquareTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 64, 64);
+
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, 64, 64);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createDiamondTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 64, 64);
+
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(32, 0);
+            ctx.lineTo(64, 32);
+            ctx.lineTo(32, 64);
+            ctx.lineTo(0, 32);
+            ctx.closePath();
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createStarTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, 64, 64);
+
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+                const x = 32 + Math.cos(angle) * 30;
+                const y = 32 + Math.sin(angle) * 30;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function getShapeTexture(shape) {
+            switch(shape) {
+                case 'circle': return createCircleTexture();
+                case 'square': return createSquareTexture();
+                case 'diamond': return createDiamondTexture();
+                case 'star': return createStarTexture();
+                default: return createCircleTexture();
+            }
+        }
+
+        // Init Three.js
+        function init() {
+            if (typeof THREE === 'undefined') {
+                alert('THREE.js failed to load.');
+                return;
+            }
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+            camera.position.z = 300;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas').appendChild(renderer.domElement);
+
+            // Add lighting for 3D mode
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight1.position.set(1, 1, 1);
+            scene.add(directionalLight1);
+
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            directionalLight2.position.set(-1, -1, -0.5);
+            scene.add(directionalLight2);
+
+            // Mouse control
+            let isDrag = false;
+            let prevMouse = { x: 0, y: 0 };
+
+            renderer.domElement.onmousedown = function(e) {
+                isDrag = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            };
+
+            renderer.domElement.onmousemove = function(e) {
+                if (!isDrag || !particles) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                particles.rotation.y += dx * 0.005;
+                particles.rotation.x += dy * 0.005;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            };
+
+            document.onmouseup = function() {
+                isDrag = false;
+            };
+
+            // Zoom with mouse wheel
+            renderer.domElement.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                const zoomSpeed = 0.1;
+                const delta = e.deltaY > 0 ? 1 : -1;
+                camera.position.z += delta * zoomSpeed * camera.position.z;
+                camera.position.z = Math.max(50, Math.min(1000, camera.position.z));
+            });
+
+            // Setup parameter controls
+            setupSliderListeners();
+            setupValueEditing();
+            setupArrowButtons();
+
+            animate();
+        }
+
+        // Load media function (image or video)
+        function loadMediaFile(file) {
+            if (!file) return;
+
+            const fileType = file.type;
+
+            if (fileType.startsWith('video/')) {
+                // Load video
+                isVideo = true;
+                const videoElement = document.getElementById('video-source');
+                const url = URL.createObjectURL(file);
+
+                videoElement.src = url;
+                videoElement.load();
+
+                videoElement.onloadeddata = function() {
+                    const isFirstLoad = (currentMedia === null);
+                    currentMedia = videoElement;
+
+                    // Show preview
+                    document.getElementById('preview').innerHTML = '<video src="' + url + '" muted loop playsinline style="max-width:100%;max-height:100%;"></video>';
+                    document.getElementById('preview').classList.add('loaded');
+                    document.getElementById('preview').querySelector('video').play();
+
+                    // Show video controls
+                    document.getElementById('video-controls').classList.remove('hidden');
+
+                    // Apply default settings on first load
+                    applyDefaultSettings(isFirstLoad);
+
+                    // Auto-play
+                    videoElement.play();
+                    document.getElementById('play-pause-btn').textContent = '⏸ Pause';
+
+                    generate(videoElement);
+
+                    // Update timeline duration when metadata is loaded
+                    videoElement.addEventListener('loadedmetadata', function() {
+                        updateTimeline();
+                    });
+
+                    // Update timeline as video plays
+                    videoElement.addEventListener('timeupdate', updateTimeline);
+                };
+            } else if (fileType.startsWith('image/')) {
+                // Load image
+                isVideo = false;
+                const imageElement = document.getElementById('image-source');
+                const url = URL.createObjectURL(file);
+
+                imageElement.src = url;
+
+                imageElement.onload = function() {
+                    const isFirstLoad = (currentMedia === null);
+                    currentMedia = imageElement;
+
+                    // Show preview
+                    document.getElementById('preview').innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:100%;object-fit:contain;">';
+                    document.getElementById('preview').classList.add('loaded');
+
+                    // Hide video controls
+                    document.getElementById('video-controls').classList.add('hidden');
+
+                    // Apply default settings on first load
+                    applyDefaultSettings(isFirstLoad);
+
+                    generate(imageElement);
+                };
+            }
+        }
+
+        function applyDefaultSettings(isFirstLoad) {
+            if (isFirstLoad) {
+                document.getElementById('size').value = 0.37;
+                document.getElementById('density').value = 7;
+                document.getElementById('depth').value = 0.1;
+                document.getElementById('breath').value = 1.0;
+                document.getElementById('brightness').value = 1.3;
+                document.getElementById('flow').value = 0.0;
+                document.getElementById('blackThreshold').value = 30;
+                document.getElementById('hide-black').checked = false;
+
+                updateValueDisplay('size');
+                updateValueDisplay('density');
+                updateValueDisplay('depth');
+                updateValueDisplay('breath');
+                updateValueDisplay('brightness');
+                updateValueDisplay('flow');
+                updateValueDisplay('blackThreshold');
+
+                document.getElementById('load-section').classList.add('hidden');
+                document.getElementById('controls').classList.remove('hidden');
+                document.getElementById('ui').classList.add('loaded');
+                document.getElementById('shape-selector').classList.remove('hidden');
+            }
+        }
+
+        // File input change
+        document.getElementById('file-input').onchange = function(e) {
+            loadMediaFile(e.target.files[0]);
+        };
+
+        // Drag & drop on preview area
+        const preview = document.getElementById('preview');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.5)';
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            preview.addEventListener(eventName, function() {
+                preview.style.borderColor = 'rgba(255,255,255,0.1)';
+            });
+        });
+
+        preview.addEventListener('drop', function(e) {
+            const file = e.dataTransfer.files[0];
+            loadMediaFile(file);
+        });
+
+        // Global drag & drop on entire page
+        ['dragenter', 'dragover'].forEach(eventName => {
+            document.body.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        document.body.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const file = e.dataTransfer.files[0];
+            if (file && (file.type.startsWith('video/') || file.type.startsWith('image/'))) {
+                loadMediaFile(file);
+            }
+        });
+
+        function generate(media) {
+            if (typeof THREE === 'undefined') {
+                alert('THREE.js not loaded.');
+                return;
+            }
+
+            // Read parameters from sliders
+            pointSize = parseFloat(document.getElementById('size').value);
+            particleDensity = parseInt(document.getElementById('density').value);
+            depthMultiplier = parseFloat(document.getElementById('depth').value);
+            breathSpeed = parseFloat(document.getElementById('breath').value);
+            brightness = parseFloat(document.getElementById('brightness').value);
+            flowIntensity = parseFloat(document.getElementById('flow').value);
+
+            // Normalize media to fixed size for consistent volume
+            const TARGET_SIZE = 1000;
+            const step = Math.max(1, Math.floor(10 / particleDensity));
+
+            // Create or reuse sampling canvas for continuous video updates
+            if (!videoSamplingCanvas) {
+                videoSamplingCanvas = document.createElement('canvas');
+                videoSamplingCanvas.width = TARGET_SIZE;
+                videoSamplingCanvas.height = TARGET_SIZE;
+                videoSamplingCtx = videoSamplingCanvas.getContext('2d');
+            }
+
+            const canvas = videoSamplingCanvas;
+            const ctx = videoSamplingCtx;
+
+            // Store sampling data for continuous updates
+            videoSamplingData = {
+                step: step,
+                TARGET_SIZE: TARGET_SIZE,
+                scaleFactor: 0.5,
+                halfSize: TARGET_SIZE / 2,
+                depthMultiplier: depthMultiplier
+            };
+
+            // Get media dimensions
+            let mediaWidth, mediaHeight;
+            if (isVideo) {
+                mediaWidth = media.videoWidth;
+                mediaHeight = media.videoHeight;
+            } else {
+                mediaWidth = media.naturalWidth || media.width;
+                mediaHeight = media.naturalHeight || media.height;
+            }
+
+            // Crop to center square and resize to TARGET_SIZE
+            const sourceSize = Math.min(mediaWidth, mediaHeight);
+            const offsetX = (mediaWidth - sourceSize) / 2;
+            const offsetY = (mediaHeight - sourceSize) / 2;
+
+            // Draw current frame to sample pixels
+            ctx.drawImage(media, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+
+            const imageData = ctx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            const data = imageData.data;
+
+            // Create particle for each pixel (1 pixel = 1 particle)
+            const positions = [];
+            const colors = [];
+            const initialZ = [];
+
+            const scaleFactor = 0.5;
+            const halfSize = TARGET_SIZE / 2;
+
+            // TRUE CUBE: depth = width = height
+            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
+
+            for (let y = 0; y < TARGET_SIZE; y += step) {
+                for (let x = 0; x < TARGET_SIZE; x += step) {
+                    const i = (y * TARGET_SIZE + x) * 4;
+                    const alpha = data[i + 3];
+
+                    // Only create particle if pixel is visible
+                    if (alpha > 30) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        const maxColor = Math.max(r, g, b);
+
+                        // Skip black particles if hideBlack is enabled
+                        if (hideBlack && maxColor < blackThreshold) {
+                            continue;
+                        }
+
+                        // Position
+                        const px = (x - halfSize) * scaleFactor;
+                        const py = -(y - halfSize) * scaleFactor;
+
+                        // Luminance-based depth
+                        const luminance = (r + g + b) / (3 * 255);
+                        const pz = (luminance - 0.5) * depthSpread;
+
+                        positions.push(px, py, pz);
+                        initialZ.push(pz);
+
+                        // Color directly from pixel with brightness boost
+                        colors.push(
+                            Math.min(1.0, (r / 255) * brightness),
+                            Math.min(1.0, (g / 255) * brightness),
+                            Math.min(1.0, (b / 255) * brightness)
+                        );
+                    }
+                }
+            }
+
+            if (particles) {
+                scene.remove(particles);
+                if (particles.geometry) particles.geometry.dispose();
+                if (particles.material) {
+                    if (videoTexture) videoTexture.dispose();
+                    particles.material.dispose();
+                }
+            }
+
+            if (is3DMode) {
+                // 3D Mode: Use InstancedMesh with real 3D geometries
+                const count = positions.length / 3;
+                let baseGeometry;
+                const size = pointSize * 3;
+
+                switch(currentShape) {
+                    case 'square':
+                        baseGeometry = new THREE.BoxGeometry(size, size, size);
+                        break;
+                    case 'circle':
+                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
+                        break;
+                    case 'diamond':
+                        baseGeometry = new THREE.OctahedronGeometry(size * 0.5);
+                        break;
+                    case 'star':
+                        baseGeometry = new THREE.TetrahedronGeometry(size * 0.6);
+                        break;
+                    default:
+                        baseGeometry = new THREE.SphereGeometry(size * 0.5, 8, 6);
+                }
+
+                material = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    flatShading: true,
+                    roughness: 0.7,
+                    metalness: 0.3,
+                    emissive: 0x000000,
+                    emissiveIntensity: 0.2
+                });
+
+                particles = new THREE.InstancedMesh(baseGeometry, material, count);
+                particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+                const instanceColors = new Float32Array(count * 3);
+                for (let i = 0; i < count; i++) {
+                    instanceColors[i * 3] = colors[i * 3];
+                    instanceColors[i * 3 + 1] = colors[i * 3 + 1];
+                    instanceColors[i * 3 + 2] = colors[i * 3 + 2];
+                }
+                particles.instanceColor = new THREE.InstancedBufferAttribute(instanceColors, 3);
+
+                const matrix = new THREE.Matrix4();
+                const color = new THREE.Color();
+
+                for (let i = 0; i < count; i++) {
+                    matrix.setPosition(
+                        positions[i * 3],
+                        positions[i * 3 + 1],
+                        positions[i * 3 + 2]
+                    );
+                    particles.setMatrixAt(i, matrix);
+                    color.setRGB(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2]);
+                    particles.setColorAt(i, color);
+                }
+
+                particles.instanceMatrix.needsUpdate = true;
+
+                particles.userData.initialZ = initialZ;
+                particles.userData.positions = positions;
+                particles.userData.is3D = true;
+
+            } else {
+                // 2D Mode: Use Points
+                geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                geometry.setAttribute('initialZ', new THREE.Float32BufferAttribute(initialZ, 1));
+
+                // Create texture based on media type
+                if (isVideo) {
+                    videoTexture = new THREE.VideoTexture(media);
+                    videoTexture.minFilter = THREE.LinearFilter;
+                    videoTexture.magFilter = THREE.LinearFilter;
+                }
+
+                const shapeTexture = getShapeTexture(currentShape);
+
+                material = new THREE.PointsMaterial({
+                    size: pointSize,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 1.0,
+                    sizeAttenuation: true,
+                    map: shapeTexture
+                });
+
+                particles = new THREE.Points(geometry, material);
+            }
+
+            scene.add(particles);
+
+            // Initialize flow offsets - random circular movement for each particle
+            const particleCount = positions.length / 3;
+            flowOffsets = [];
+            for (let i = 0; i < particleCount; i++) {
+                flowOffsets.push({
+                    phaseX: Math.random() * Math.PI * 2,
+                    phaseY: Math.random() * Math.PI * 2,
+                    speedX: 0.3 + Math.random() * 0.7,
+                    speedY: 0.3 + Math.random() * 0.7,
+                    radiusX: 2 + Math.random() * 8,
+                    radiusY: 2 + Math.random() * 8
+                });
+            }
+        }
+
+        function applySettings() {
+            if (!currentMedia) {
+                alert('No media loaded');
+                return;
+            }
+
+            generate(currentMedia);
+        }
+
+        function resetToDefaults() {
+            document.getElementById('size').value = 0.37;
+            document.getElementById('density').value = 7;
+            document.getElementById('depth').value = 0.1;
+            document.getElementById('breath').value = 1.0;
+            document.getElementById('brightness').value = 1.3;
+            document.getElementById('flow').value = 0.0;
+            document.getElementById('blackThreshold').value = 30;
+            document.getElementById('hide-black').checked = false;
+            hideBlack = false;
+
+            updateValueDisplay('size');
+            updateValueDisplay('density');
+            updateValueDisplay('depth');
+            updateValueDisplay('breath');
+            updateValueDisplay('brightness');
+            updateValueDisplay('flow');
+            updateValueDisplay('blackThreshold');
+
+            if (currentMedia) {
+                generate(currentMedia);
+            }
+        }
+
+        function resetCamera() {
+            camera.position.set(0, 0, 300);
+            camera.rotation.set(0, 0, 0);
+            if (particles) {
+                particles.rotation.set(0, 0, 0);
+            }
+        }
+
+        function changeMedia() {
+            document.getElementById('file-input').click();
+        }
+
+        // Update particle colors and depth from current video frame
+        function updateColorsFromVideo() {
+            if (!currentMedia || !isVideo || !videoSamplingCanvas || !videoSamplingData || !particles) return;
+
+            const { step, TARGET_SIZE, scaleFactor, halfSize, depthMultiplier } = videoSamplingData;
+
+            // Get media dimensions
+            const mediaWidth = currentMedia.videoWidth;
+            const mediaHeight = currentMedia.videoHeight;
+            const sourceSize = Math.min(mediaWidth, mediaHeight);
+            const offsetX = (mediaWidth - sourceSize) / 2;
+            const offsetY = (mediaHeight - sourceSize) / 2;
+
+            videoSamplingCtx.drawImage(currentMedia, offsetX, offsetY, sourceSize, sourceSize, 0, 0, TARGET_SIZE, TARGET_SIZE);
+            const imageData = videoSamplingCtx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+            const data = imageData.data;
+
+            // Calculate depth spread (same as in generate)
+            const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
+
+            // Collect new colors and depths
+            const newColors = [];
+            const newDepths = [];
+            for (let y = 0; y < TARGET_SIZE; y += step) {
+                for (let x = 0; x < TARGET_SIZE; x += step) {
+                    const i = (y * TARGET_SIZE + x) * 4;
+                    const alpha = data[i + 3];
+
+                    if (alpha > 30) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        const maxColor = Math.max(r, g, b);
+
+                        // Update luminance-based depth in real-time
+                        const luminance = (r + g + b) / (3 * 255);
+                        const pz = (luminance - 0.5) * depthSpread;
+                        newDepths.push(pz);
+
+                        // Skip if hideBlack and below threshold (but keep same particle count)
+                        if (hideBlack && maxColor < blackThreshold) {
+                            newColors.push(0, 0, 0);
+                        } else {
+                            // Update color with brightness boost
+                            newColors.push(
+                                Math.min(1.0, (r / 255) * brightness),
+                                Math.min(1.0, (g / 255) * brightness),
+                                Math.min(1.0, (b / 255) * brightness)
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Update colors and depths based on mode
+            if (is3DMode && particles.instanceColor) {
+                // 3D Mode: Update instance colors and initial depths
+                const colors = particles.instanceColor.array;
+                for (let i = 0; i < newColors.length; i++) {
+                    colors[i] = newColors[i];
+                }
+                particles.instanceColor.needsUpdate = true;
+
+                // Update initialZ for depth animation
+                if (particles.userData.initialZ) {
+                    for (let i = 0; i < newDepths.length; i++) {
+                        particles.userData.initialZ[i] = newDepths[i];
+                    }
+                }
+            } else if (geometry && geometry.attributes.color) {
+                // 2D Mode: Update vertex colors and initial depths
+                const colors = geometry.attributes.color.array;
+                for (let i = 0; i < newColors.length; i++) {
+                    colors[i] = newColors[i];
+                }
+                geometry.attributes.color.needsUpdate = true;
+
+                // Update initialZ attribute for depth animation
+                if (geometry.attributes.initialZ) {
+                    const initialZArray = geometry.attributes.initialZ.array;
+                    for (let i = 0; i < newDepths.length; i++) {
+                        initialZArray[i] = newDepths[i];
+                    }
+                    geometry.attributes.initialZ.needsUpdate = true;
+                }
+            }
+        }
+
+        // Animation with subtle breathing movement and video texture updates
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += 0.001 * breathSpeed;
+
+            // Update particle colors from current video frame (only for videos)
+            if (currentMedia && isVideo) {
+                updateColorsFromVideo();
+            }
+
+            // Update video texture
+            if (videoTexture && currentMedia && isVideo) {
+                videoTexture.needsUpdate = true;
+            }
+
+            if (particles && flowOffsets) {
+                if (particles.userData && particles.userData.is3D) {
+                    // 3D Mode: Update instance matrices for breathing and flow animation
+                    const initialZs = particles.userData.initialZ;
+                    const positions = particles.userData.positions;
+
+                    if (initialZs && positions && initialZs.length > 0) {
+                        const matrix = new THREE.Matrix4();
+                        const epsilon = 0.3 * breathSpeed;
+
+                        for (let i = 0; i < initialZs.length; i++) {
+                            const breathOffset = Math.sin(time + i * 0.01) * epsilon;
+                            const newZ = initialZs[i] + breathOffset;
+
+                            // Flow movement - circular organic motion
+                            let flowX = 0, flowY = 0;
+                            if (flowIntensity > 0 && flowOffsets[i]) {
+                                const offset = flowOffsets[i];
+                                flowX = Math.sin(time * offset.speedX + offset.phaseX) * offset.radiusX * flowIntensity;
+                                flowY = Math.cos(time * offset.speedY + offset.phaseY) * offset.radiusY * flowIntensity;
+                            }
+
+                            matrix.setPosition(
+                                positions[i * 3] + flowX,
+                                positions[i * 3 + 1] + flowY,
+                                newZ
+                            );
+                            particles.setMatrixAt(i, matrix);
+                        }
+                        particles.instanceMatrix.needsUpdate = true;
+                    }
+                } else if (geometry && geometry.attributes.position) {
+                    // 2D Mode: Update position attribute for breathing and flow animation
+                    const positions = geometry.attributes.position.array;
+                    const initialZs = geometry.attributes.initialZ.array;
+
+                    // Store initial positions if not already stored
+                    if (!geometry.userData.initialPositions) {
+                        geometry.userData.initialPositions = new Float32Array(positions.length);
+                        for (let i = 0; i < positions.length; i++) {
+                            geometry.userData.initialPositions[i] = positions[i];
+                        }
+                    }
+
+                    const initialPositions = geometry.userData.initialPositions;
+
+                    for (let i = 0; i < positions.length / 3; i++) {
+                        const epsilon = 0.3 * breathSpeed;
+                        const breathOffset = Math.sin(time + i * 0.01) * epsilon;
+
+                        // Flow movement - circular organic motion
+                        let flowX = 0, flowY = 0;
+                        if (flowIntensity > 0 && flowOffsets[i]) {
+                            const offset = flowOffsets[i];
+                            flowX = Math.sin(time * offset.speedX + offset.phaseX) * offset.radiusX * flowIntensity;
+                            flowY = Math.cos(time * offset.speedY + offset.phaseY) * offset.radiusY * flowIntensity;
+                        }
+
+                        positions[i * 3] = initialPositions[i * 3] + flowX;
+                        positions[i * 3 + 1] = initialPositions[i * 3 + 1] + flowY;
+                        positions[i * 3 + 2] = initialZs[i] + breathOffset;
+                    }
+
+                    geometry.attributes.position.needsUpdate = true;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Resize
+        window.onresize = function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        // Shape selector event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.shape-btn[data-shape]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.shape-btn[data-shape]').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentShape = this.dataset.shape;
+                    if (currentMedia) {
+                        generate(currentMedia);
+                    }
+                });
+            });
+
+            // 3D Mode toggle
+            document.getElementById('mode-3d-btn').addEventListener('click', function() {
+                is3DMode = !is3DMode;
+                this.classList.toggle('active');
+
+                const mark2D = document.getElementById('size-mark-2d');
+                const mark3D = document.getElementById('size-mark-3d');
+                if (is3DMode) {
+                    mark2D.style.display = 'none';
+                    mark3D.style.display = 'block';
+                } else {
+                    mark2D.style.display = 'block';
+                    mark3D.style.display = 'none';
+                }
+
+                if (currentMedia) {
+                    generate(currentMedia);
+                }
+            });
+
+            // Hide black checkbox
+            document.getElementById('hide-black').addEventListener('change', function() {
+                hideBlack = this.checked;
+                scheduleRegenerate();
+            });
+
+            // Version selector
+            const VERSION = "1.3.6";
+            const versionSelector = document.getElementById('version-selector');
+            const versionMenu = document.getElementById('version-menu');
+
+            versionSelector.addEventListener('click', function(e) {
+                e.stopPropagation();
+                versionMenu.classList.toggle('show');
+            });
+
+            document.addEventListener('click', function() {
+                versionMenu.classList.remove('show');
+            });
+
+            document.querySelectorAll('.version-item').forEach(item => {
+                if (item.dataset.version === VERSION) {
+                    item.classList.add('current');
+                }
+
+                item.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const file = this.dataset.file;
+                    if (file && file !== 'dispersed-volume_v1.3.6.html') {
+                        window.location.href = file;
+                    }
+                });
+            });
+        });
+
+        // Timeline click to seek
+        document.getElementById('timeline').addEventListener('click', seekVideo);
+
+        // Start
+        window.onload = init;
+    </script>
+</body>
+</html>
