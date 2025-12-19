@@ -12,13 +12,13 @@
         #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 
         #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-              z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
-              padding: 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
-              max-width: 500px; width: 90%; transition: all 0.4s ease;
-              max-height: 90vh; overflow-y: auto; }
+              z-index: 100; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+              padding: 24px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+              max-width: 420px; width: 90%; transition: all 0.4s ease;
+              max-height: 85vh; overflow-y: auto; }
 
         #ui.loaded { top: auto; bottom: 20px; left: auto; right: 20px;
-                     transform: none; max-width: 400px; width: auto; padding: 20px;
+                     transform: none; max-width: 320px; width: auto; padding: 16px;
                      max-height: calc(100vh - 40px); overflow-y: auto; }
 
         #title-link { position: fixed; top: 20px; left: 20px; z-index: 100;
@@ -79,7 +79,7 @@
                        color: #fff; padding: 2px 6px; border-radius: 3px; width: 60px;
                        text-align: center; }
 
-        .param-row { margin-bottom: 20px; }
+        .param-row { margin-bottom: 14px; }
         .param-header { display: flex; justify-content: space-between; align-items: center;
                         margin-bottom: 8px; }
         .param-header label { margin: 0; }
@@ -231,13 +231,13 @@
                     <label>DEPTH SPREAD</label>
                     <div class="param-controls">
                         <button class="arrow-btn" data-param="depth" data-dir="down">▼</button>
-                        <span class="value" id="val-depth" data-param="depth">1.0X</span>
+                        <span class="value" id="val-depth" data-param="depth">0.5X</span>
                         <button class="arrow-btn" data-param="depth" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="1.0">
-                    <div class="center-mark" style="left: 31.0%;"></div>
+                    <input type="range" class="slider" id="depth" min="0.1" max="3.0" step="0.1" value="0.5">
+                    <div class="center-mark" style="left: 13.8%;"></div>
                 </div>
             </div>
 
@@ -307,18 +307,18 @@
             <div class="param-row">
                 <div class="param-header">
                     <label style="display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" id="enable-depth-cull" style="width: 14px; height: 14px; cursor: pointer;">
+                        <input type="checkbox" id="enable-depth-cull" checked style="width: 14px; height: 14px; cursor: pointer;">
                         <span>DEPTH CULLING</span>
                     </label>
                     <div class="param-controls">
                         <button class="arrow-btn" data-param="depthCullPower" data-dir="down">▼</button>
-                        <span class="value" id="val-depthCullPower" data-param="depthCullPower">0.5</span>
+                        <span class="value" id="val-depthCullPower" data-param="depthCullPower">0.40</span>
                         <button class="arrow-btn" data-param="depthCullPower" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="depthCullPower" min="0.0" max="1.0" step="0.05" value="0.5">
-                    <div class="center-mark" style="left: 50%;"></div>
+                    <input type="range" class="slider" id="depthCullPower" min="0.0" max="1.0" step="0.05" value="0.40">
+                    <div class="center-mark" style="left: 40%;"></div>
                 </div>
             </div>
 
@@ -327,13 +327,13 @@
                     <label>CONTRAST</label>
                     <div class="param-controls">
                         <button class="arrow-btn" data-param="contrast" data-dir="down">▼</button>
-                        <span class="value" id="val-contrast" data-param="contrast">1.0</span>
+                        <span class="value" id="val-contrast" data-param="contrast">1.8</span>
                         <button class="arrow-btn" data-param="contrast" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="contrast" min="0.0" max="3.0" step="0.1" value="1.0">
-                    <div class="center-mark" style="left: 33.3%;"></div>
+                    <input type="range" class="slider" id="contrast" min="0.0" max="3.0" step="0.1" value="1.8">
+                    <div class="center-mark" style="left: 60%;"></div>
                 </div>
             </div>
 
@@ -342,13 +342,31 @@
                     <label>SATURATION</label>
                     <div class="param-controls">
                         <button class="arrow-btn" data-param="saturation" data-dir="down">▼</button>
-                        <span class="value" id="val-saturation" data-param="saturation">1.0</span>
+                        <span class="value" id="val-saturation" data-param="saturation">1.10</span>
                         <button class="arrow-btn" data-param="saturation" data-dir="up">▲</button>
                     </div>
                 </div>
                 <div class="slider-wrapper">
-                    <input type="range" class="slider" id="saturation" min="0.0" max="2.0" step="0.05" value="1.0">
-                    <div class="center-mark" style="left: 50%;"></div>
+                    <input type="range" class="slider" id="saturation" min="0.0" max="2.0" step="0.05" value="1.10">
+                    <div class="center-mark" style="left: 55%;"></div>
+                </div>
+            </div>
+
+            <div class="param-row">
+                <div class="param-header">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="hide-background" style="width: 14px; height: 14px; cursor: pointer;">
+                        <span>HIDE BACKGROUND</span>
+                    </label>
+                    <div class="param-controls">
+                        <button class="arrow-btn" data-param="bgThreshold" data-dir="down">▼</button>
+                        <span class="value" id="val-bgThreshold" data-param="bgThreshold">40</span>
+                        <button class="arrow-btn" data-param="bgThreshold" data-dir="up">▲</button>
+                    </div>
+                </div>
+                <div class="slider-wrapper">
+                    <input type="range" class="slider" id="bgThreshold" min="0" max="128" step="2" value="40">
+                    <div class="center-mark" style="left: 31.25%;"></div>
                 </div>
             </div>
 
@@ -381,10 +399,12 @@
         let videoTexture = null;
 
         // New v1.3.1 parameters
-        let enableDepthCull = false;
-        let depthCullPower = 0.5;
-        let contrast = 1.0;
-        let saturation = 1.0;
+        let enableDepthCull = true;
+        let depthCullPower = 0.4;
+        let contrast = 1.8;
+        let saturation = 1.10;
+        let hideBackground = false;
+        let bgThreshold = 40;
 
         // Video sampling data for continuous updates
         let videoSamplingCanvas = null;
@@ -413,7 +433,8 @@
             blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' },
             depthCullPower: { min: 0.0, max: 1.0, step: 0.05, decimals: 2, suffix: '' },
             contrast: { min: 0.0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
-            saturation: { min: 0.0, max: 2.0, step: 0.05, decimals: 2, suffix: '' }
+            saturation: { min: 0.0, max: 2.0, step: 0.05, decimals: 2, suffix: '' },
+            bgThreshold: { min: 0, max: 128, step: 2, decimals: 0, suffix: '' }
         };
 
         function updateValueDisplay(param) {
@@ -873,6 +894,43 @@
             // TRUE CUBE: depth = width = height
             const depthSpread = TARGET_SIZE * scaleFactor * depthMultiplier;
 
+            // v1.3.1 — Detect background color from edges if hideBackground is enabled
+            let bgR = 0, bgG = 0, bgB = 0;
+            if (hideBackground) {
+                const edgeSamples = [];
+                const sampleSize = 20; // Sample 20 pixels from each edge
+
+                // Top and bottom edges
+                for (let x = 0; x < TARGET_SIZE; x += Math.floor(TARGET_SIZE / sampleSize)) {
+                    // Top edge
+                    const iTop = x * 4;
+                    edgeSamples.push([data[iTop], data[iTop + 1], data[iTop + 2]]);
+                    // Bottom edge
+                    const iBottom = ((TARGET_SIZE - 1) * TARGET_SIZE + x) * 4;
+                    edgeSamples.push([data[iBottom], data[iBottom + 1], data[iBottom + 2]]);
+                }
+
+                // Left and right edges
+                for (let y = 0; y < TARGET_SIZE; y += Math.floor(TARGET_SIZE / sampleSize)) {
+                    // Left edge
+                    const iLeft = (y * TARGET_SIZE) * 4;
+                    edgeSamples.push([data[iLeft], data[iLeft + 1], data[iLeft + 2]]);
+                    // Right edge
+                    const iRight = (y * TARGET_SIZE + (TARGET_SIZE - 1)) * 4;
+                    edgeSamples.push([data[iRight], data[iRight + 1], data[iRight + 2]]);
+                }
+
+                // Calculate average background color
+                edgeSamples.forEach(sample => {
+                    bgR += sample[0];
+                    bgG += sample[1];
+                    bgB += sample[2];
+                });
+                bgR = Math.floor(bgR / edgeSamples.length);
+                bgG = Math.floor(bgG / edgeSamples.length);
+                bgB = Math.floor(bgB / edgeSamples.length);
+            }
+
             for (let y = 0; y < TARGET_SIZE; y += step) {
                 for (let x = 0; x < TARGET_SIZE; x += step) {
                     const i = (y * TARGET_SIZE + x) * 4;
@@ -888,6 +946,14 @@
                         // Skip black particles if hideBlack is enabled
                         if (hideBlack && maxColor < blackThreshold) {
                             continue;
+                        }
+
+                        // v1.3.1 — Skip background particles if hideBackground is enabled
+                        if (hideBackground) {
+                            const colorDist = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB);
+                            if (colorDist < bgThreshold) {
+                                continue; // Skip this particle, it's part of the background
+                            }
                         }
 
                         // Position
@@ -1089,7 +1155,7 @@
         function resetToDefaults() {
             document.getElementById('size').value = 1.0;
             document.getElementById('density').value = 7;
-            document.getElementById('depth').value = 1.0;
+            document.getElementById('depth').value = 0.5;
             document.getElementById('breath').value = 1.0;
             document.getElementById('brightness').value = 1.8;
             document.getElementById('flow').value = 0.0;
@@ -1098,14 +1164,18 @@
             hideBlack = false;
 
             // New v1.3.1 parameters
-            document.getElementById('depthCullPower').value = 0.5;
-            document.getElementById('contrast').value = 1.0;
-            document.getElementById('saturation').value = 1.0;
-            document.getElementById('enable-depth-cull').checked = false;
-            enableDepthCull = false;
-            depthCullPower = 0.5;
-            contrast = 1.0;
-            saturation = 1.0;
+            document.getElementById('depthCullPower').value = 0.4;
+            document.getElementById('contrast').value = 1.8;
+            document.getElementById('saturation').value = 1.10;
+            document.getElementById('bgThreshold').value = 40;
+            document.getElementById('enable-depth-cull').checked = true;
+            document.getElementById('hide-background').checked = false;
+            enableDepthCull = true;
+            depthCullPower = 0.4;
+            contrast = 1.8;
+            saturation = 1.10;
+            hideBackground = false;
+            bgThreshold = 40;
 
             updateValueDisplay('size');
             updateValueDisplay('density');
@@ -1117,6 +1187,7 @@
             updateValueDisplay('depthCullPower');
             updateValueDisplay('contrast');
             updateValueDisplay('saturation');
+            updateValueDisplay('bgThreshold');
 
             if (currentVideo) {
                 generate(currentVideo);
@@ -1412,6 +1483,12 @@
             document.getElementById('enable-depth-cull').addEventListener('change', function() {
                 enableDepthCull = this.checked;
                 if (currentVideo) generate(currentVideo);
+            });
+
+            // Hide background checkbox
+            document.getElementById('hide-background').addEventListener('change', function() {
+                hideBackground = this.checked;
+                scheduleRegenerate();
             });
 
             // Version selector
