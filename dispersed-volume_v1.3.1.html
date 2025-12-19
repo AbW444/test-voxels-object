@@ -372,6 +372,12 @@
         let regenerateTimeout;
         let videoTexture = null;
 
+        // New v1.3.1 parameters
+        let enableDepthCull = false;
+        let depthCullPower = 0.5;
+        let contrast = 1.0;
+        let saturation = 1.0;
+
         // Video sampling data for continuous updates
         let videoSamplingCanvas = null;
         let videoSamplingCtx = null;
@@ -396,7 +402,10 @@
             breath: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
             brightness: { min: 0.5, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
             flow: { min: 0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
-            blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' }
+            blackThreshold: { min: 0, max: 128, step: 1, decimals: 0, suffix: '' },
+            depthCullPower: { min: 0.0, max: 1.0, step: 0.05, decimals: 2, suffix: '' },
+            contrast: { min: 0.0, max: 3.0, step: 0.1, decimals: 1, suffix: '' },
+            saturation: { min: 0.0, max: 2.0, step: 0.05, decimals: 2, suffix: '' }
         };
 
         function updateValueDisplay(param) {
@@ -803,6 +812,11 @@
             brightness = parseFloat(document.getElementById('brightness').value);
             flowIntensity = parseFloat(document.getElementById('flow').value);
 
+            // New v1.3.1 parameters
+            depthCullPower = parseFloat(document.getElementById('depthCullPower').value);
+            contrast = parseFloat(document.getElementById('contrast').value);
+            saturation = parseFloat(document.getElementById('saturation').value);
+
             // Normalize video to fixed size for consistent volume
             const TARGET_SIZE = 1000;
             const step = Math.max(1, Math.floor(10 / particleDensity));
@@ -879,13 +893,75 @@
                         positions.push(px, py, pz);
                         initialZ.push(pz);
 
-                        // Color directly from pixel with brightness boost
+                        // v1.3.1 — Apply contrast and saturation effects
+                        let rNorm = r / 255;
+                        let gNorm = g / 255;
+                        let bNorm = b / 255;
+
+                        // Apply contrast (0.5 = gray, 1.0 = normal, 2.0+ = high contrast)
+                        if (contrast !== 1.0) {
+                            rNorm = (rNorm - 0.5) * contrast + 0.5;
+                            gNorm = (gNorm - 0.5) * contrast + 0.5;
+                            bNorm = (bNorm - 0.5) * contrast + 0.5;
+                            rNorm = Math.max(0, Math.min(1, rNorm));
+                            gNorm = Math.max(0, Math.min(1, gNorm));
+                            bNorm = Math.max(0, Math.min(1, bNorm));
+                        }
+
+                        // Apply saturation (0.0 = B&W, 1.0 = normal, 2.0 = oversaturated)
+                        if (saturation !== 1.0) {
+                            const gray = 0.299 * rNorm + 0.587 * gNorm + 0.114 * bNorm;
+                            rNorm = gray + saturation * (rNorm - gray);
+                            gNorm = gray + saturation * (gNorm - gray);
+                            bNorm = gray + saturation * (bNorm - gray);
+                            rNorm = Math.max(0, Math.min(1, rNorm));
+                            gNorm = Math.max(0, Math.min(1, gNorm));
+                            bNorm = Math.max(0, Math.min(1, bNorm));
+                        }
+
+                        // Color with brightness boost
                         colors.push(
-                            Math.min(1.0, (r / 255) * brightness),
-                            Math.min(1.0, (g / 255) * brightness),
-                            Math.min(1.0, (b / 255) * brightness)
+                            Math.min(1.0, rNorm * brightness),
+                            Math.min(1.0, gNorm * brightness),
+                            Math.min(1.0, bNorm * brightness)
                         );
                     }
+                }
+            }
+
+            // v1.3.1 — Apply depth culling if enabled
+            if (enableDepthCull && depthCullPower > 0) {
+                // Find min and max Z values
+                let minZ = Infinity;
+                let maxZ = -Infinity;
+                for (let i = 0; i < initialZ.length; i++) {
+                    minZ = Math.min(minZ, initialZ[i]);
+                    maxZ = Math.max(maxZ, initialZ[i]);
+                }
+
+                const zRange = maxZ - minZ;
+                const cullThreshold = minZ + zRange * depthCullPower;
+
+                // Mark particles for culling by making them transparent
+                // We'll store alphas array to apply later
+                const alphas = [];
+                for (let i = 0; i < initialZ.length; i++) {
+                    const z = initialZ[i];
+                    // Particles with Z < cullThreshold become transparent
+                    if (z < cullThreshold) {
+                        const fade = 1.0 - ((cullThreshold - z) / (zRange * depthCullPower));
+                        alphas.push(Math.max(0, fade));
+                    } else {
+                        alphas.push(1.0);
+                    }
+                }
+
+                // Apply alpha to colors (reduce RGB by alpha)
+                for (let i = 0; i < colors.length / 3; i++) {
+                    const alpha = alphas[i];
+                    colors[i * 3] *= alpha;
+                    colors[i * 3 + 1] *= alpha;
+                    colors[i * 3 + 2] *= alpha;
                 }
             }
 
@@ -1024,6 +1100,16 @@
             document.getElementById('hide-black').checked = false;
             hideBlack = false;
 
+            // New v1.3.1 parameters
+            document.getElementById('depthCullPower').value = 0.5;
+            document.getElementById('contrast').value = 1.0;
+            document.getElementById('saturation').value = 1.0;
+            document.getElementById('enable-depth-cull').checked = false;
+            enableDepthCull = false;
+            depthCullPower = 0.5;
+            contrast = 1.0;
+            saturation = 1.0;
+
             updateValueDisplay('size');
             updateValueDisplay('density');
             updateValueDisplay('depth');
@@ -1031,6 +1117,9 @@
             updateValueDisplay('brightness');
             updateValueDisplay('flow');
             updateValueDisplay('blackThreshold');
+            updateValueDisplay('depthCullPower');
+            updateValueDisplay('contrast');
+            updateValueDisplay('saturation');
 
             if (currentVideo) {
                 generate(currentVideo);
@@ -1094,14 +1183,68 @@
                         if (hideBlack && maxColor < blackThreshold) {
                             newColors.push(0, 0, 0);
                         } else {
+                            // v1.3.1 — Apply contrast and saturation effects
+                            let rNorm = r / 255;
+                            let gNorm = g / 255;
+                            let bNorm = b / 255;
+
+                            // Apply contrast
+                            if (contrast !== 1.0) {
+                                rNorm = (rNorm - 0.5) * contrast + 0.5;
+                                gNorm = (gNorm - 0.5) * contrast + 0.5;
+                                bNorm = (bNorm - 0.5) * contrast + 0.5;
+                                rNorm = Math.max(0, Math.min(1, rNorm));
+                                gNorm = Math.max(0, Math.min(1, gNorm));
+                                bNorm = Math.max(0, Math.min(1, bNorm));
+                            }
+
+                            // Apply saturation
+                            if (saturation !== 1.0) {
+                                const gray = 0.299 * rNorm + 0.587 * gNorm + 0.114 * bNorm;
+                                rNorm = gray + saturation * (rNorm - gray);
+                                gNorm = gray + saturation * (gNorm - gray);
+                                bNorm = gray + saturation * (bNorm - gray);
+                                rNorm = Math.max(0, Math.min(1, rNorm));
+                                gNorm = Math.max(0, Math.min(1, gNorm));
+                                bNorm = Math.max(0, Math.min(1, bNorm));
+                            }
+
                             // Update color with brightness boost
                             newColors.push(
-                                Math.min(1.0, (r / 255) * brightness),
-                                Math.min(1.0, (g / 255) * brightness),
-                                Math.min(1.0, (b / 255) * brightness)
+                                Math.min(1.0, rNorm * brightness),
+                                Math.min(1.0, gNorm * brightness),
+                                Math.min(1.0, bNorm * brightness)
                             );
                         }
                     }
+                }
+            }
+
+            // v1.3.1 — Apply depth culling if enabled
+            if (enableDepthCull && depthCullPower > 0 && newDepths.length > 0) {
+                // Find min and max Z values
+                let minZ = Infinity;
+                let maxZ = -Infinity;
+                for (let i = 0; i < newDepths.length; i++) {
+                    minZ = Math.min(minZ, newDepths[i]);
+                    maxZ = Math.max(maxZ, newDepths[i]);
+                }
+
+                const zRange = maxZ - minZ;
+                const cullThreshold = minZ + zRange * depthCullPower;
+
+                // Apply alpha based on depth
+                for (let i = 0; i < newDepths.length; i++) {
+                    const z = newDepths[i];
+                    let alpha = 1.0;
+                    if (z < cullThreshold) {
+                        const fade = 1.0 - ((cullThreshold - z) / (zRange * depthCullPower));
+                        alpha = Math.max(0, fade);
+                    }
+                    // Apply alpha to colors
+                    newColors[i * 3] *= alpha;
+                    newColors[i * 3 + 1] *= alpha;
+                    newColors[i * 3 + 2] *= alpha;
                 }
             }
 
@@ -1269,6 +1412,12 @@
             document.getElementById('hide-black').addEventListener('change', function() {
                 hideBlack = this.checked;
                 scheduleRegenerate();
+            });
+
+            // Depth culling checkbox
+            document.getElementById('enable-depth-cull').addEventListener('change', function() {
+                enableDepthCull = this.checked;
+                if (currentVideo) generate(currentVideo);
             });
 
             // Version selector
