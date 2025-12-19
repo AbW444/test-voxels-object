@@ -14,10 +14,12 @@
         #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
               z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px);
               padding: 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
-              max-width: 500px; width: 90%; transition: all 0.4s ease; }
+              max-width: 500px; width: 90%; transition: all 0.4s ease;
+              max-height: 90vh; overflow-y: auto; }
 
         #ui.loaded { top: auto; bottom: 20px; left: auto; right: 20px;
-                     transform: none; max-width: 360px; width: auto; padding: 24px; }
+                     transform: none; max-width: 400px; width: auto; padding: 20px;
+                     max-height: calc(100vh - 40px); overflow-y: auto; }
 
         #title-link { position: fixed; top: 20px; left: 20px; z-index: 100;
                       text-decoration: none; color: #fff; transition: opacity 0.2s; }
@@ -99,6 +101,12 @@
 
         .hint { font-size: 9px; opacity: 0.3; margin-top: 10px; text-align: center;
                 font-style: italic; }
+
+        /* Custom scrollbar for UI */
+        #ui::-webkit-scrollbar { width: 8px; }
+        #ui::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
+        #ui::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        #ui::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
 
         #shape-selector { position: fixed; top: 20px; right: 20px; z-index: 100;
                           display: flex; gap: 8px; background: rgba(0,0,0,0.75);
@@ -929,7 +937,7 @@
                 }
             }
 
-            // v1.3.1 — Apply depth culling if enabled
+            // v1.3.1 — Apply depth culling if enabled (make particles truly invisible)
             if (enableDepthCull && depthCullPower > 0) {
                 // Find min and max Z values
                 let minZ = Infinity;
@@ -942,26 +950,15 @@
                 const zRange = maxZ - minZ;
                 const cullThreshold = minZ + zRange * depthCullPower;
 
-                // Mark particles for culling by making them transparent
-                // We'll store alphas array to apply later
-                const alphas = [];
+                // Remove particles below threshold (make them black = invisible)
                 for (let i = 0; i < initialZ.length; i++) {
                     const z = initialZ[i];
-                    // Particles with Z < cullThreshold become transparent
                     if (z < cullThreshold) {
-                        const fade = 1.0 - ((cullThreshold - z) / (zRange * depthCullPower));
-                        alphas.push(Math.max(0, fade));
-                    } else {
-                        alphas.push(1.0);
+                        // Set to pure black = invisible
+                        colors[i * 3] = 0;
+                        colors[i * 3 + 1] = 0;
+                        colors[i * 3 + 2] = 0;
                     }
-                }
-
-                // Apply alpha to colors (reduce RGB by alpha)
-                for (let i = 0; i < colors.length / 3; i++) {
-                    const alpha = alphas[i];
-                    colors[i * 3] *= alpha;
-                    colors[i * 3 + 1] *= alpha;
-                    colors[i * 3 + 2] *= alpha;
                 }
             }
 
@@ -1220,7 +1217,7 @@
                 }
             }
 
-            // v1.3.1 — Apply depth culling if enabled
+            // v1.3.1 — Apply depth culling if enabled (make particles truly invisible)
             if (enableDepthCull && depthCullPower > 0 && newDepths.length > 0) {
                 // Find min and max Z values
                 let minZ = Infinity;
@@ -1233,18 +1230,15 @@
                 const zRange = maxZ - minZ;
                 const cullThreshold = minZ + zRange * depthCullPower;
 
-                // Apply alpha based on depth
+                // Remove particles below threshold (make them black = invisible)
                 for (let i = 0; i < newDepths.length; i++) {
                     const z = newDepths[i];
-                    let alpha = 1.0;
                     if (z < cullThreshold) {
-                        const fade = 1.0 - ((cullThreshold - z) / (zRange * depthCullPower));
-                        alpha = Math.max(0, fade);
+                        // Set to pure black = invisible
+                        newColors[i * 3] = 0;
+                        newColors[i * 3 + 1] = 0;
+                        newColors[i * 3 + 2] = 0;
                     }
-                    // Apply alpha to colors
-                    newColors[i * 3] *= alpha;
-                    newColors[i * 3 + 1] *= alpha;
-                    newColors[i * 3 + 2] *= alpha;
                 }
             }
 
