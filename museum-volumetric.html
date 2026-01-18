@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Musée 3D - Projection Volumétrique v1.3.1</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #app {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Instructions overlay */
+        #instructions {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+            max-width: 500px;
+            transition: opacity 0.3s;
+        }
+
+        #instructions.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #instructions h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #fff 0%, #888 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #instructions p {
+            margin: 10px 0;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        #instructions .key {
+            display: inline-block;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            font-weight: 600;
+            margin: 0 2px;
+        }
+
+        #instructions button {
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #instructions button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Control panel */
+        #controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 320px;
+        }
+
+        #controls.hidden {
+            display: none;
+        }
+
+        #controls h2 {
+            font-size: 14px;
+            margin-bottom: 16px;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 11px;
+            margin-bottom: 6px;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-group input[type="file"] {
+            display: none;
+        }
+
+        .control-group button {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .control-group button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .control-group select {
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .control-group select option {
+            background: #000;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        /* Info panel */
+        #info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            padding: 12px 16px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        #info .version {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        /* Loading indicator */
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px 40px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: none;
+        }
+
+        #loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <!-- Instructions -->
+    <div id="instructions">
+        <h1>🏛️ Musée Volumétrique 3D</h1>
+        <p>
+            <span class="key">ZQSD</span> ou <span class="key">WASD</span> : Déplacement<br>
+            <span class="key">Souris</span> : Orientation<br>
+            <span class="key">ESC</span> : Quitter la navigation
+        </p>
+        <button onclick="startExperience()">Cliquez pour commencer</button>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Control panel -->
+    <div id="controls" class="hidden">
+        <h2>🎬 Contrôles</h2>
+
+        <div class="control-group">
+            <label>Charger une vidéo/image</label>
+            <button onclick="document.getElementById('file-input').click()">
+                Parcourir...
+            </button>
+            <input type="file" id="file-input" accept="video/*,image/*">
+        </div>
+
+        <div class="control-group">
+            <label>Appliquer sur</label>
+            <select id="target-screen">
+                <option value="all">Toutes les surfaces</option>
+                <option value="SCREEN_FLOOR">Sol uniquement</option>
+                <option value="SCREEN_WALL_LEFT">Mur gauche uniquement</option>
+                <option value="SCREEN_WALL_RIGHT">Mur droit uniquement</option>
+                <option value="SCREEN_WALL_BACK">Mur fond uniquement</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Forme des particules</label>
+            <select id="particle-shape" onchange="updateShape()">
+                <option value="circle">Cercle</option>
+                <option value="square" selected>Carré</option>
+                <option value="diamond">Diamant</option>
+                <option value="star">Étoile</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <div class="checkbox-group">
+                <input type="checkbox" id="mode-3d" checked onchange="updateMode()">
+                <label for="mode-3d">Mode 3D</label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <button onclick="clearAllProjections()">
+                Effacer toutes les projections
+            </button>
+        </div>
+    </div>
+
+    <!-- Info panel -->
+    <div id="info">
+        <div class="version">Musée 3D v1.0 - Protocole Volumétrique v1.3.1</div>
+        <div id="projection-count">Projections actives: 0</div>
+    </div>
+
+    <!-- Three.js importmap -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/examples/jsm/controls/PointerLockControls.js": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/PointerLockControls.js"
+        }
+    }
+    </script>
+
+    <!-- Main application -->
+    <script type="module">
+        import { MuseumScene } from './MUSEUM_COMPLETE.js';
+        import { MuseumProjectionManager } from './MuseumProjectionManager.js';
+
+        // Global variables
+        let museum;
+        let projectionManager;
+        let animationId;
+
+        // Initialize application
+        async function init() {
+            console.log('[Museum] Initializing...');
+
+            // Create museum
+            museum = new MuseumScene();
+            museum.init(document.getElementById('app'));
+
+            // Create projection manager
+            projectionManager = new MuseumProjectionManager(museum);
+
+            // Setup file input
+            document.getElementById('file-input').addEventListener('change', handleFileSelect);
+
+            // Start animation loop
+            animate();
+
+            console.log('[Museum] ✓ Initialized');
+        }
+
+        // Animation loop
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+
+            // Update museum (navigation, etc.)
+            museum.update();
+
+            // Update all projections
+            if (projectionManager) {
+                projectionManager.update(0.016); // ~60fps
+            }
+
+            // Render
+            museum.render();
+        }
+
+        // Handle file selection
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const isVideo = file.type.startsWith('video/');
+            const isImage = file.type.startsWith('image/');
+
+            if (!isVideo && !isImage) {
+                alert('Veuillez sélectionner une image ou une vidéo');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('loading').classList.add('show');
+
+            try {
+                // Create media element
+                let media;
+                if (isVideo) {
+                    media = document.createElement('video');
+                    media.src = URL.createObjectURL(file);
+                    media.loop = true;
+                    media.muted = true;
+                    media.playsinline = true;
+                    await new Promise((resolve) => {
+                        media.onloadeddata = () => {
+                            media.play();
+                            resolve();
+                        };
+                    });
+                } else {
+                    media = document.createElement('img');
+                    media.src = URL.createObjectURL(file);
+                    await new Promise((resolve) => {
+                        media.onload = resolve;
+                    });
+                }
+
+                // Get current configuration
+                const config = {
+                    pointSize: 1.0,
+                    particleDensity: 7,
+                    depthMultiplier: 1.0,
+                    breathSpeed: 1.0,
+                    brightness: 1.8,
+                    flowIntensity: 0.0,
+                    hideBlack: false,
+                    blackThreshold: 30,
+                    currentShape: document.getElementById('particle-shape').value,
+                    is3DMode: document.getElementById('mode-3d').checked
+                };
+
+                // Get target screen
+                const targetScreen = document.getElementById('target-screen').value;
+
+                if (targetScreen === 'all') {
+                    // Apply to all screens
+                    const screens = ['SCREEN_FLOOR', 'SCREEN_WALL_LEFT', 'SCREEN_WALL_RIGHT', 'SCREEN_WALL_BACK'];
+                    await projectionManager.createSyncedProjections(screens, media, config);
+                } else {
+                    // Apply to specific screen
+                    await projectionManager.createProjection(targetScreen, media, isVideo, config);
+                }
+
+                // Update projection count
+                updateProjectionCount();
+
+            } catch (error) {
+                console.error('[Museum] Error loading media:', error);
+                alert('Erreur lors du chargement du fichier');
+            } finally {
+                // Hide loading
+                document.getElementById('loading').classList.remove('show');
+            }
+        }
+
+        // Update shape for all projections
+        window.updateShape = function() {
+            const shape = document.getElementById('particle-shape').value;
+            projectionManager.updateAllProjectionsConfig({ currentShape: shape });
+        };
+
+        // Update mode for all projections
+        window.updateMode = function() {
+            const is3D = document.getElementById('mode-3d').checked;
+            projectionManager.updateAllProjectionsConfig({ is3DMode: is3D });
+        };
+
+        // Clear all projections
+        window.clearAllProjections = function() {
+            projectionManager.removeAllProjections();
+            updateProjectionCount();
+        };
+
+        // Update projection count display
+        function updateProjectionCount() {
+            const count = projectionManager.getActiveProjections().length;
+            document.getElementById('projection-count').textContent = `Projections actives: ${count}`;
+        }
+
+        // Start experience (hide instructions)
+        window.startExperience = function() {
+            document.getElementById('instructions').classList.add('hidden');
+            document.getElementById('controls').classList.remove('hidden');
+        };
+
+        // Initialize on load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
