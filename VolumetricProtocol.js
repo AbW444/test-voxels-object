@@ -173,7 +173,7 @@ export class VolumetricProtocol {
       this.videoSamplingCanvas = document.createElement('canvas');
       this.videoSamplingCanvas.width = TARGET_SIZE;
       this.videoSamplingCanvas.height = TARGET_SIZE;
-      this.videoSamplingCtx = this.videoSamplingCanvas.getContext('2d');
+      this.videoSamplingCtx = this.videoSamplingCanvas.getContext('2d', { willReadFrequently: true });
     }
 
     const ctx = this.videoSamplingCtx;
@@ -196,6 +196,15 @@ export class VolumetricProtocol {
       mediaWidth = media.naturalWidth || media.width;
       mediaHeight = media.naturalHeight || media.height;
     }
+
+    // Verify media has valid dimensions
+    if (!mediaWidth || !mediaHeight || mediaWidth === 0 || mediaHeight === 0) {
+      console.error('[VolumetricProtocol] Invalid media dimensions:', mediaWidth, 'x', mediaHeight);
+      console.error('[VolumetricProtocol] Media:', this.isVideo ? 'Video' : 'Image');
+      return;
+    }
+
+    console.log('[VolumetricProtocol] Media dimensions:', mediaWidth, 'x', mediaHeight);
 
     // Crop to center square and resize to TARGET_SIZE
     const sourceSize = Math.min(mediaWidth, mediaHeight);

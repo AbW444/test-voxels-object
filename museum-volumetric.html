@@ -383,17 +383,38 @@
                     media.loop = true;
                     media.muted = true;
                     media.playsinline = true;
-                    await new Promise((resolve) => {
-                        media.onloadeddata = () => {
-                            media.play();
-                            resolve();
+
+                    // Wait for video to be fully loaded with metadata
+                    await new Promise((resolve, reject) => {
+                        media.onloadedmetadata = () => {
+                            console.log('[Museum] Video loaded:', media.videoWidth, 'x', media.videoHeight);
+                            if (media.videoWidth > 0 && media.videoHeight > 0) {
+                                media.play().then(resolve).catch(reject);
+                            } else {
+                                reject(new Error('Video dimensions are 0'));
+                            }
                         };
+                        media.onerror = () => reject(new Error('Video failed to load'));
                     });
+
+                    // Extra wait to ensure video is playing
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
                 } else {
                     media = document.createElement('img');
                     media.src = URL.createObjectURL(file);
-                    await new Promise((resolve) => {
-                        media.onload = resolve;
+
+                    // Wait for image to be fully loaded
+                    await new Promise((resolve, reject) => {
+                        media.onload = () => {
+                            console.log('[Museum] Image loaded:', media.naturalWidth, 'x', media.naturalHeight);
+                            if (media.naturalWidth > 0 && media.naturalHeight > 0) {
+                                resolve();
+                            } else {
+                                reject(new Error('Image dimensions are 0'));
+                            }
+                        };
+                        media.onerror = () => reject(new Error('Image failed to load'));
                     });
                 }
 
