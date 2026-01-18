@@ -389,7 +389,7 @@
                         media.onloadedmetadata = () => {
                             console.log('[Museum] Video loaded:', media.videoWidth, 'x', media.videoHeight);
                             if (media.videoWidth > 0 && media.videoHeight > 0) {
-                                media.play().then(resolve).catch(reject);
+                                resolve();
                             } else {
                                 reject(new Error('Video dimensions are 0'));
                             }
@@ -397,8 +397,31 @@
                         media.onerror = () => reject(new Error('Video failed to load'));
                     });
 
-                    // Extra wait to ensure video is playing
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    // Wait for video to have data and be ready to play
+                    await new Promise((resolve) => {
+                        if (media.readyState >= 3) { // HAVE_FUTURE_DATA or better
+                            resolve();
+                        } else {
+                            media.oncanplay = resolve;
+                        }
+                    });
+
+                    // Start playing
+                    await media.play();
+
+                    // Wait for first frame to be rendered
+                    await new Promise(resolve => {
+                        media.ontimeupdate = function firstFrame() {
+                            if (media.currentTime > 0) {
+                                media.ontimeupdate = null; // Remove listener
+                                console.log('[Museum] First frame rendered at', media.currentTime);
+                                resolve();
+                            }
+                        };
+                    });
+
+                    // Extra safety delay
+                    await new Promise(resolve => setTimeout(resolve, 200));
 
                 } else {
                     media = document.createElement('img');
